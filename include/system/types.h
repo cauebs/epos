@@ -54,7 +54,10 @@ template<> class Padding<64> { long long int _padding; } __attribute__((packed))
 typedef unsigned char Percent;
 typedef unsigned char UUID[8];
 
-class Dummy {};
+template <typename ... Tn> struct Dummy {
+    Dummy(Tn ... an){}
+    friend Debug & operator<<(Debug & db, const Dummy & d) { return db; };
+};
 
 __END_UTIL
 

@@ -10,7 +10,7 @@ void _vector_table()
     // LSB must be 1 in thumb mode, so add 1 to all symbols
     ASM("\t\n\
         .word   __boot_stack__  + 1     // Stack pointer at reset               \t\n\
-        .word   _mcu_start + 1          // Reset                                \t\n\
+        .word   _start + 1              // Reset                                \t\n\
         .word   _int_entry + 1          // NMI                                  \t\n\
         .word   _int_entry + 1          // Hard fault                           \t\n\
         .word   _int_entry + 1          // Memory management fault              \t\n\

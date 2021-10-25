@@ -8,50 +8,53 @@
 __BEGIN_SYS
 
 class Machine_Common;
-template <> struct Traits<Machine_Common>: public Traits<Build>
+template<> struct Traits<Machine_Common>: public Traits<Build>
 {
     static const bool debugged = Traits<Build>::debugged;
 };
 
-template <> struct Traits<Machine>: public Traits<Machine_Common>
+template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
+private:
+    static const bool library_mode              = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
+
+public:
     static const bool cpus_use_local_timer      = false;
 
     static const unsigned int NOT_USED          = 0xffffffff;
+    static const unsigned int SIMULATED         = Traits<Build>::EXPECTED_SIMULATION_TIME;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
 
-    // Boot Image
-    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
-    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
-
     // Physical Memory
-    static const unsigned int MEM_BASE          = 0x00000000;
-    static const unsigned int VECTOR_TABLE      = 0x00008000; // Defined by uboot@QEMU
-    static const unsigned int PAGE_TABLES       = 0x3eef0000; // 1006 MB
-    static const unsigned int MEM_TOP           = 0x3eeeffff; // 1 GB
-    static const unsigned int BOOT_STACK        = 0x3eeefffc; // MEM_TOP - sizeof(int) - 1M for boot stacks
-    // Logical Memory Map
+    static const unsigned int RAM_BASE          = 0x00000000;
+    static const unsigned int RAM_TOP           = 0x3eefffff;   // 1 GB - 17 M
+    static const unsigned int MIO_BASE          = 0x3ef00000;
+    static const unsigned int MIO_TOP           = 0x400000ff;   // ~17 MB
+
+    // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int SETUP             = NOT_USED;
-    static const unsigned int INIT              = NOT_USED;
+    static const unsigned int BOOT_STACK        = 0x0007fffc;   // RAM_BASE + 512KB - 4 (will be used as the stack pointer, not the base)
+    static const unsigned int IMAGE             = 0x00100000;
+    static const unsigned int RESET             = SIMULATED ? 0x00010000 : 0x00008000;
+    static const unsigned int SETUP             = library_mode ? NOT_USED : RESET;
 
-    static const unsigned int APP_LOW           = 0x00000000;
-    static const unsigned int APP_CODE          = 0x00008000;
-    static const unsigned int APP_DATA          = 0x00008000;
-    static const unsigned int APP_HIGH          = 0x3eeeffff;
+    // Logical Memory Map
+    static const unsigned int VECTOR_TABLE      = 0;
+    static const unsigned int APP_LOW           = library_mode ? RESET : 0x80000000;
+    static const unsigned int APP_HIGH          = APP_LOW + (RAM_TOP - RAM_BASE) - 1;
 
-    static const unsigned int PHY_MEM           = 0x40000000; // 2 GB
-    static const unsigned int IO_BASE           = 0x40000000; // 4 GB - 256 MB
-    static const unsigned int IO_TOP            = 0x400000ff; // 4 GB - 12 MB
+    static const unsigned int APP_CODE          = library_mode ? RESET : APP_LOW;
+    static const unsigned int APP_DATA          = APP_CODE + 4 * 1024 * 1024;
 
-    static const unsigned int SYS               = IO_TOP;     // 4 GB - 12 MB
-    static const unsigned int SYS_CODE          = 0xff700000;
-    static const unsigned int SYS_DATA          = 0xff740000;
+    static const unsigned int INIT              = library_mode ? NOT_USED : 0x00080000;
+    static const unsigned int PHY_MEM           = 0x00000000;   // 0 (max 1792 MB)
+    static const unsigned int IO                = 0x70000000;   // 2 GB - 256 MB (max 247 MB)
+    static const unsigned int SYS               = 0xff700000;   // 4 GB - 9 MB
 
     // Default Sizes and Quantities
     static const unsigned int STACK_SIZE        = 16 * 1024;
-    static const unsigned int HEAP_SIZE         = 16 * 1024 * 1024;
     static const unsigned int MAX_THREADS       = 16;
+    static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;
 
     // PLL clocks
     static const unsigned int ARM_PLL_CLOCK     = 1333333333;
@@ -59,7 +62,7 @@ template <> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int DDR_PLL_CLOCK     = 1066666666;
 };
 
-template <> struct Traits<IC>: public Traits<Machine_Common>
+template<> struct Traits<IC>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
 

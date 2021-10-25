@@ -8,31 +8,34 @@
 __BEGIN_SYS
 
 class Machine_Common;
-template <> struct Traits<Machine_Common>: public Traits<Build>
+template<> struct Traits<Machine_Common>: public Traits<Build>
 {
     static const bool debugged = Traits<Build>::debugged;
 };
 
-template <> struct Traits<Machine>: public Traits<Machine_Common>
+template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
     static const bool cpus_use_local_timer      = true;
 
     static const unsigned int NOT_USED          = 0xffffffff;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
 
+    // Physical Memory
+    static const unsigned int MEM_BASE          = 0x00000000;
+    static const unsigned int MEM_TOP           = 0x07ffffff;   // 128 MB
+    static const unsigned int VECTOR_TABLE      = 0x00010000;   // Defined by uboot@QEMU
+    static const unsigned int PAGE_TABLES       = 0x07f00000;   // MEM_TOP - 16 MB
+    static const unsigned int MIO_BASE          = 0x10000000;
+    static const unsigned int MIO_TOP           = 0x1fffffff;
+
     // Boot Image
     static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
     static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
-
-    // Physical Memory
-    static const unsigned int MEM_BASE          = 0x00000000;
-    static const unsigned int VECTOR_TABLE      = 0x00010000; // Defined by uboot@QEMU
-    static const unsigned int PAGE_TABLES       = 0x07f00000; // MEM_TOP - 16 MB
-    static const unsigned int MEM_TOP           = 0x07ffffff; // 128 MB
-    static const unsigned int BOOT_STACK        = 0x07effffc; // MEM_TOP - sizeof(int) - 1M for boot stacks
+    static const unsigned int BOOT_STACK        = 0x07effffc;   // MEM_TOP - sizeof(int) - 1M for boot stacks
 
     // Logical Memory Map
     static const unsigned int BOOT              = NOT_USED;
+    static const unsigned int IMAGE             = NOT_USED;
     static const unsigned int SETUP             = NOT_USED;
     static const unsigned int INIT              = NOT_USED;
 
@@ -42,10 +45,9 @@ template <> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int APP_HIGH          = 0x07ffffff;
 
     static const unsigned int PHY_MEM           = 0x80000000; // 2 GB
-    static const unsigned int IO_BASE           = 0xf0000000; // 4 GB - 256 MB
-    static const unsigned int IO_TOP            = 0xff400000; // 4 GB - 12 MB
+    static const unsigned int IO                = 0xf0000000;   // 4 GB - 256 MB
 
-    static const unsigned int SYS               = IO_TOP;     // 4 GB - 12 MB
+    static const unsigned int SYS               = 0xff400000;   // 4 GB - 12 MB
     static const unsigned int SYS_CODE          = 0xff700000;
     static const unsigned int SYS_DATA          = 0xff740000;
 
@@ -60,7 +62,7 @@ template <> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int DDR_PLL_CLOCK     = 1066666666;
 };
 
-template <> struct Traits<IC>: public Traits<Machine_Common>
+template<> struct Traits<IC>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
 
@@ -68,7 +70,7 @@ template <> struct Traits<IC>: public Traits<Machine_Common>
     static const unsigned int INTS = 96;
 };
 
-template <> struct Traits<Timer>: public Traits<Machine_Common>
+template<> struct Traits<Timer>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
 
@@ -80,7 +82,7 @@ template <> struct Traits<Timer>: public Traits<Machine_Common>
     static const int FREQUENCY = 1000; // Hz
 };
 
-template <> struct Traits<UART>: public Traits<Machine_Common>
+template<> struct Traits<UART>: public Traits<Machine_Common>
 {
     static const unsigned int UNITS = 2;
 

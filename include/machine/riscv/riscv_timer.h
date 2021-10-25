@@ -34,7 +34,7 @@ public:
         ALARM
     };
 
-    static const Hertz CLOCK = Traits<Machine>::TIMER_CLOCK;
+    static const Hertz CLOCK = Traits<Timer>::CLOCK;
 
 protected:
     Timer(unsigned int channel, const Hertz & frequency, const Handler & handler, bool retrigger = true)

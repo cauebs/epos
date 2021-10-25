@@ -8,43 +8,45 @@
 __BEGIN_SYS
 
 class Machine_Common;
-template <> struct Traits<Machine_Common>: public Traits<Build>
+template<> struct Traits<Machine_Common>: public Traits<Build>
 {
     static const bool debugged = Traits<Build>::debugged;
 };
 
-template <> struct Traits<Machine>: public Traits<Machine_Common>
+template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
     static const bool cpus_use_local_timer      = false;
 
     static const unsigned int NOT_USED          = 0xffffffff;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
 
-    // Boot Image
-    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
-    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
-
     // Physical Memory
     // Using only DDR memory for data, OCM doesn't support exclusive accesses
     // needed for atomic operations. The vector table must be placed at
     // 0x00000000.
     static const unsigned int MEM_BASE          = 0x00000000;
-    static const unsigned int MEM_TOP           = 0x080fffff; // 129 MB
-    static const unsigned int BOOT_STACK        = 0x080ffffc; // MEM_TOP - sizeof(int)
+    static const unsigned int MEM_TOP           = 0x080fffff;   // 129 MB
+    static const unsigned int MIO_BASE          = 0xe0000000;
+    static const unsigned int MIO_TOP           = 0xf8ffffff;
+
+    // Boot Image
+    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
+    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
+    static const unsigned int BOOT_STACK        = 0x080ffffc;   // MEM_TOP - sizeof(int)
 
     // Logical Memory Map
     static const unsigned int BOOT              = NOT_USED;
+    static const unsigned int IMAGE             = NOT_USED;
     static const unsigned int SETUP             = NOT_USED;
     static const unsigned int INIT              = NOT_USED;
 
-    static const unsigned int APP_LOW           = 0x00000000;
-    static const unsigned int APP_CODE          = 0x00000000;
-    static const unsigned int APP_DATA          = 0x03100000; // 192 MB
-    static const unsigned int APP_HIGH          = 0x06100000; // 384 MB
+    static const unsigned int APP_LOW           = MEM_BASE;
+    static const unsigned int APP_CODE          = MEM_BASE;
+    static const unsigned int APP_DATA          = 0x03100000;   // 192 MB
+    static const unsigned int APP_HIGH          = 0x06100000;   // 384 MB
 
-    static const unsigned int PHY_MEM           = 0x80000000; // 2 GB
-    static const unsigned int IO_BASE           = 0xf0000000; // 4 GB - 256 MB
-    static const unsigned int IO_TOP            = 0xff400000; // 4 GB - 12 MB
+    static const unsigned int PHY_MEM           = 0x80000000;   // 2 GB
+    static const unsigned int IO                = 0xf0000000;   // 4 GB - 256 MB
 
     static const unsigned int SYS               = 0x06100000;
     static const unsigned int SYS_CODE          = 0x06100000;

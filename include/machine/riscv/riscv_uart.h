@@ -56,13 +56,11 @@ public:
     using UART_Common::ODD;
 
 public:
-    UART(unsigned int unit = UNIT, unsigned int baud_rate = BAUD_RATE, unsigned int data_bits = DATA_BITS, unsigned int parity = PARITY, unsigned int stop_bits = STOP_BITS) 
-    {
+    UART(unsigned int unit = UNIT, unsigned int baud_rate = BAUD_RATE, unsigned int data_bits = DATA_BITS, unsigned int parity = PARITY, unsigned int stop_bits = STOP_BITS) {
         config(baud_rate, data_bits, parity, stop_bits);
     }
 
-    void config(unsigned int baud_rate, unsigned int data_bits, unsigned int parity, unsigned int stop_bits)
-    {
+    void config(unsigned int baud_rate, unsigned int data_bits, unsigned int parity, unsigned int stop_bits) {
         // 0x3 for 8, 0x2 for 7, 0x1 for 6 and default (0x0) is 5 bits
         Reg8 word_length = Reg8(data_bits - DEFAULT_DATA_BITS);
         reg(LCR) = word_length;

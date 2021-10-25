@@ -14,7 +14,7 @@ public:
     // Interrupts
     static const unsigned int INTS = Traits<IC>::INTS;
     enum {
-        INT_SYS_TIMER           = SYSTEM_TIMER_MATCH1,
+        INT_SYS_TIMER           = Traits<Machine>::SIMULATED ? CORE0_MAILBOX_TIMER_IRQ : SYSTEM_TIMER_MATCH1,
         INT_USER_TIMER0         = SYSTEM_TIMER_MATCH3,
         INT_USER_TIMER1         = SYSTEM_TIMER_MATCH3,
         INT_USER_TIMER2         = SYSTEM_TIMER_MATCH3,
@@ -28,7 +28,7 @@ public:
         INT_USB0                = USB_CONTROLLER,
         INT_SPI                 = SPI_INT,
         INT_RESCHEDULER         = CORE0_MAILBOX0_IRQ,
-        LAST_INT                = IC_Common::LAST_INT
+        LAST_INT                = BCM_IC_Common::LAST_INT
     };
 
 public:
@@ -78,7 +78,7 @@ public:
 
 private:
     static BCM_IRQ * irq() { return reinterpret_cast<BCM_IRQ *>(Memory_Map::IC_BASE); }
-    static BCM_Mailbox * mbox() { return reinterpret_cast<BCM_Mailbox *>(Memory_Map::CTRL_BASE); }
+    static BCM_Mailbox * mbox() { return reinterpret_cast<BCM_Mailbox *>(Memory_Map::MBOX_CTRL_BASE); }
 };
 
 __END_SYS

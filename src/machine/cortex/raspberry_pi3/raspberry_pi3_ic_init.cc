@@ -2,130 +2,18 @@
 
 #include <architecture/cpu.h>
 #include <machine/ic.h>
-#include <machine/timer.h>
-#include <machine/usb.h>
-#include <machine/gpio.h>
-#include <machine/nic.h>
+#include <system/memory_map.h>
 
 __BEGIN_SYS
 
-// Class attributes
-IC::Interrupt_Handler IC::_eoi_vector[INTS] = {
-    0,
-    Timer::eoi, // System Timer C1
-    0,
-    0, // System Timer C3 (User_Timer)--> should we add the EOI function here?
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    Timer::eoi, // ARM TIMER INT
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    mailbox_eoi, // MB0_CPU0
-    0,//mailbox_eoi, // MB1_CPU0
-    0,//mailbox_eoi, // MB2_CPU0
-    0,//mailbox_eoi, // MB3_CPU0
-    0,//mailbox_eoi, // MB0_CPU1
-    0,//mailbox_eoi, // MB1_CPU1
-    0,//mailbox_eoi, // MB2_CPU1
-    0,//mailbox_eoi, // MB3_CPU1
-    0,//mailbox_eoi, // MB0_CPU2
-    0,//mailbox_eoi, // MB1_CPU2
-    0,//mailbox_eoi, // MB2_CPU2
-    0,//mailbox_eoi, // MB3_CPU2
-    0,//mailbox_eoi, // MB0_CPU3
-    0,//mailbox_eoi, // MB1_CPU3
-    0,//mailbox_eoi, // MB2_CPU3
-    0,//mailbox_eoi, // MB3_CPU3
-    0
-};
-
+extern "C" { void _int_entry();
+             void _undefined_instruction();
+             void _software_interrupt();
+             void _prefetch_abort();
+             void _data_abort();
+             void _reserved();
+             void _fiq(); 
+}
 
 // Class methods
 void IC::init()
@@ -136,6 +24,15 @@ void IC::init()
     Engine::init();
 
     disable(); // will be enabled on demand as handlers are registered
+
+    CPU::FSR * vt = reinterpret_cast<CPU::FSR *>(Memory_Map::VECTOR_TABLE + 32);
+    // vt[0] = _reset is defined by SETUP
+    vt[1] = _undefined_instruction;
+    vt[2] = _software_interrupt;
+    vt[3] = _prefetch_abort;
+    vt[4] = _data_abort;
+    vt[5] = _int_entry;
+    vt[6] = _fiq;
 
     // Set all interrupt handlers to int_not()
     for(Interrupt_Id i = 0; i < INTS; i++)

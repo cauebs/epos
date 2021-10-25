@@ -6,7 +6,6 @@
 
 #include <machine/ic.h>
 #include <machine/gpio.h>
-#include <transducer.h>
 #include <synchronizer.h>
 
 __BEGIN_SYS

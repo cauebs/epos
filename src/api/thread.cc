@@ -25,7 +25,7 @@ void Thread::constructor_prologue(unsigned int stack_size)
 }
 
 
-void Thread::constructor_epilogue(const Log_Addr & entry, unsigned int stack_size)
+void Thread::constructor_epilogue(Log_Addr entry, unsigned int stack_size)
 {
     db<Thread>(TRC) << "Thread(entry=" << entry
                     << ",state=" << _state

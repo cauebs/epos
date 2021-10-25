@@ -1,15 +1,19 @@
-// EPOS First Thread Initializer
+// EPOS Initializer End
 
 #include <system.h>
 #include <process.h>
 
 __BEGIN_SYS
 
-class Init_First
+// This class purpose is simply to define a well-known ending point for the initialization of the system.
+// It activates the first application thread (usually main()).
+// It must be linked first so init_end becomes the last constructor in the global's constructor list.
+
+class Init_End
 {
 public:
-    Init_First() {
-        db<Init>(TRC) << "Init_First()" << endl;
+    Init_End() {
+        db<Init>(TRC) << "Init_End()" << endl;
 
         if(!Traits<System>::multithread) {
             CPU::int_enable();
@@ -22,14 +26,13 @@ public:
 
         // Interrupts have been disable at Thread::init() and will be reenabled by CPU::Context::load()
         // but we first reset the timer to avoid getting a time interrupt during load()
-        Timer::reset();
-        CPU::int_enable();
+        if(Traits<Timer>::enabled)
+            Timer::reset();
+
         Thread::running()->_context->load();
     }
 };
 
-// Global object "init_first" must be constructed last in the context of the
-// OS, for it activates the first application thread (usually main())
-Init_First init_first;
+Init_End init_end;
 
 __END_SYS

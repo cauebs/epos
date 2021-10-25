@@ -4,6 +4,20 @@
 
 __BEGIN_SYS
 
+void Machine::pre_init(System_Info * si)
+{
+    // Usually BSP gets here later than other cores, so CPU::smp_barrier_init() must be idempotent
+    if(Traits<System>::multicore)
+        CPU::smp_barrier_init(si->bm.n_cpus);
+
+    CPU::smp_barrier();
+
+    if(CPU::id() == 0)
+        Display::init();
+
+    db<Init, Machine>(TRC) << "Machine::pre_init()" << endl;
+}
+
 void Machine::init()
 {
     db<Init, Machine>(TRC) << "Machine::init()" << endl;

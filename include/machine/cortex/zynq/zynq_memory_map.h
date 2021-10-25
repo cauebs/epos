@@ -9,8 +9,8 @@ __BEGIN_SYS
 
 struct Memory_Map: public Cortex_Memory_Map
 {
-    // Physical Memory
     enum {
+        // Base addresses for memory-mapped control and I/O devices
         UART0_BASE              = 0xe0000000,
         UART1_BASE              = 0xe0001000,
         SPI0_BASE               = 0xe0006000,
@@ -30,12 +30,18 @@ struct Memory_Map: public Cortex_Memory_Map
         SCU_BASE                = 0xf8f00000, // A9 MP Snoop Control Unit
         GIC_CPU_BASE            = 0xf8f00100,
         GLOBAL_TIMER_BASE       = 0xf8f00200,
+        TSC_BASE                = GLOBAL_TIMER_BASE,
         PRIVATE_TIMER_BASE      = 0xf8f00600,
         PRIVATE_TIMER_BASE1     = 0xf8f00620,
-        GIC_DIST_BASE           = 0xf8f01000
-    };
+        GIC_DIST_BASE           = 0xf8f01000,
 
-    // Logical Address Space
+        // Logical Address Space
+        SYS_CODE                = Traits<Machine>::SYS_CODE,
+        SYS_INFO                = NOT_USED,
+        SYS_DATA                = Traits<Machine>::SYS_CODE,
+        SYS_STACK               = NOT_USED,
+        SYS_HEAP                = NOT_USED
+    };
 };
 
 __END_SYS

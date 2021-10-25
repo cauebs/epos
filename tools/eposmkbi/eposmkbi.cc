@@ -38,13 +38,18 @@ struct Configuration
     bool           endianess;  // true => little, false => big
     unsigned int   mem_base;
     unsigned int   mem_top;
-    unsigned int   boot_length_min;
-    unsigned int   boot_length_max;
+    unsigned int   mio_base;
+    unsigned int   mio_top;
     short          node_id;   // nodes in SAN (-1 => dynamic)
     int            space_x;   // Spatial coordinates of a node (-1 => mobile)
     int            space_y;
     int            space_z;
     unsigned char  uuid[8];   // EPOS image Universally Unique Identifier
+    bool           need_boot;
+    bool           need_si;
+    bool           si_in_setup;
+    unsigned int   boot_length_min;
+    unsigned int   boot_length_max;
 };
 
 // System_Info
@@ -52,13 +57,13 @@ typedef _SYS::System_Info System_Info;
 
 // PROTOTYPES
 bool parse_config(FILE * cfg_file, Configuration * cfg);
-void strtolower (char *dst,const char* src);
+void strtolower (char * dst,const char * src);
 bool add_machine_secrets(int fd_img, unsigned int i_size, char * mach, char * mmod);
 
 bool file_exist(char *file);
 
-int put_buf(int fd_out, void *buf, int size);
-int put_file(int fd_out, char *file);
+int put_buf(int fd_out, void * buf, int size);
+int put_file(int fd_out, char * file);
 int pad(int fd_out, int size);
 bool lil_endian();
 
@@ -140,7 +145,7 @@ int main(int argc, char **argv)
     }
 
     // Open destination file (rewrite)
-    int fd_img = open(argv[optind + 1], O_WRONLY | O_CREAT | O_TRUNC, 00644);
+    int fd_img = open(argv[optind + 1], O_RDWR | O_CREAT | O_TRUNC, 00644);
     if(fd_img < 0) {
         fprintf(err, "Error: can't create boot image \"%s\"!\n", argv[optind + 1]);
         return 1;
@@ -152,19 +157,33 @@ int main(int argc, char **argv)
     fprintf(out, "  Model: %s\n", CONFIG.mmod);
     fprintf(out, "  Processor: %s (%d bits, %s-endian)\n", CONFIG.arch, CONFIG.word_size, CONFIG.endianess ? "little" : "big");
     fprintf(out, "  Memory: %d KBytes\n", (CONFIG.mem_top - CONFIG.mem_base) / 1024);
-    fprintf(out, "  Boot Length: %d - %d (min - max) KBytes\n", CONFIG.boot_length_min, CONFIG.boot_length_max);
     if(CONFIG.space_x != -1)
         fprintf(out, "  Node location: (%d, %d, %d)\n", CONFIG.space_x, CONFIG.space_y, CONFIG.space_z);
     fprintf(out, "  UUID: ");
     for(unsigned int i = 0; i < 8; i++)
         fprintf(out, "%.2x", CONFIG.uuid[i]);
 
+    // Initialize the Boot_Map in System_Info
+    System_Info si;
+    si.bm.n_cpus   = CONFIG.n_cpus;     // can be adjusted by SETUP in some machines
+    si.bm.mem_base = CONFIG.mem_base;
+    si.bm.mem_top  = CONFIG.mem_top;
+    si.bm.mio_base = CONFIG.mio_base;   // can be adjusted by SETUP in some machines
+    si.bm.mio_top  = CONFIG.mio_top;    // can be adjusted by SETUP in some machines
+    si.bm.node_id  = CONFIG.node_id;
+    si.bm.space_x  = CONFIG.space_x;
+    si.bm.space_y  = CONFIG.space_y;
+    si.bm.space_z  = CONFIG.space_z;
+    for(unsigned int i = 0; i < 8; i++)
+        si.bm.uuid[i]  = CONFIG.uuid[i];
+
+
     // Create the boot image
     unsigned int image_size = 0;
     fprintf(out, "\n  Creating EPOS bootable image in \"%s\":\n", argv[optind + 1]);
 
     // Add BOOT
-    if(CONFIG.boot_length_max > 0) {
+    if(CONFIG.need_boot) {
         sprintf(file, "%s/img/boot_%s", argv[optind], CONFIG.mmod);
         fprintf(out, "    Adding bootstrap \"%s\":", file);
         image_size += put_file(fd_img, file);
@@ -180,30 +199,15 @@ int main(int argc, char **argv)
     unsigned int boot_size = image_size;
 
     // Reserve space for System_Info if necessary
-    System_Info si;
-    bool need_si = true;
-    if(image_size == 0) {
-        need_si = false;
-    } else
-        if(sizeof(System_Info) > MAX_SI_LEN) {
+    if(CONFIG.need_si && !CONFIG.si_in_setup) {
+        if(sizeof(System_Info) <= MAX_SI_LEN) {
+            image_size += pad(fd_img, MAX_SI_LEN);
+        } else {
             fprintf(out, " failed!\n");
             fprintf(err, "System_Info structure is too large (%d)!\n", sizeof(System_Info));
             return 1;
-        } else
-            image_size += pad(fd_img, MAX_SI_LEN);
-
-    // Initialize the Boot_Map in System_Info
-    si.bm.n_cpus   = CONFIG.n_cpus; // can be adjusted by SETUP in some machines
-    si.bm.mem_base = CONFIG.mem_base;
-    si.bm.mem_top  = CONFIG.mem_top;
-    si.bm.io_base  = 0; // will be adjusted by SETUP
-    si.bm.io_top   = 0; // will be adjusted by SETUP
-    si.bm.node_id  = CONFIG.node_id;
-    si.bm.space_x  = CONFIG.space_x;
-    si.bm.space_y  = CONFIG.space_y;
-    si.bm.space_z  = CONFIG.space_z;
-    for(unsigned int i = 0; i < 8; i++)
-        si.bm.uuid[i]  = CONFIG.uuid[i];
+        }
+    }
 
     // Add SETUP
     sprintf(file, "%s/img/setup_%s", argv[optind], CONFIG.mmod);
@@ -255,9 +259,43 @@ int main(int argc, char **argv)
     si.bm.img_size = image_size - boot_size;
 
     // Add System_Info
-    if(need_si) {
-        fprintf(out, "    Adding system info:");
-        if(lseek(fd_img, boot_size, SEEK_SET) < 0) {
+    if(CONFIG.need_si) {
+        unsigned int si_offset = boot_size;
+        fprintf(out, "    Adding system info");
+        if(CONFIG.si_in_setup) {
+            fprintf(out, " to SETUP:");
+            struct stat stat;
+            if(fstat(fd_img, &stat) < 0)  {
+                fprintf(out, " failed! (stat)\n");
+                return 0;
+            }
+            char * buffer = (char *) malloc(stat.st_size);
+            if(!buffer) {
+                fprintf(out, " failed! (malloc)\n");
+                return 0;
+            }
+            memset(buffer, '\1', stat.st_size);
+            lseek(fd_img, 0, SEEK_SET);
+            if(read(fd_img, buffer, stat.st_size) < 0) {
+                fprintf(out, " failed! (read)\n");
+                free(buffer);
+                return 0;
+            }
+
+            char placeholder[] = "System_Info placeholder. Actual System_Info will be added by mkbi!";
+            char * setup_si = reinterpret_cast<char *>(memmem(buffer, stat.st_size, placeholder, strlen(placeholder)));
+            if(setup_si) {
+                si_offset = setup_si - buffer;
+            } else {
+                fprintf(out, " failed! (SETUP does not contain System_Info placeholder)\n");
+                free(buffer);
+                return 0;
+            }
+        } else {
+            fprintf(out, " to image:");
+            si_offset = boot_size;
+        }
+        if(lseek(fd_img, si_offset, SEEK_SET) < 0) {
             fprintf(err, "Error: can't seek the boot image!\n");
             return 1;
         }
@@ -279,7 +317,7 @@ int main(int argc, char **argv)
     }
     fprintf(out, " done.\n");
 
-    //Finish
+    // Finish
     close(fd_img);
     fprintf(out, "\n  Image successfully generated (%d bytes)!\n\n", image_size);
 
@@ -392,49 +430,51 @@ bool parse_config(FILE * cfg_file, Configuration * cfg)
 
     // Memory Base
     if(fgets(line, 256, cfg_file) != line) {
-        fprintf(err, "Error: failed to read MEM_BASE from configuration file!\n");
+        fprintf(err, "Error: failed to read RAM_BASE from configuration file!\n");
         return false;
     }
     token = strtok(line, "=");
-    if(strcmp(token, "MEM_BASE") || !(token = strtok(NULL, "\n"))) {
-        fprintf(err, "Error: no valid MEM_BASE in configuration!\n");
+    if(strcmp(token, "RAM_BASE") || !(token = strtok(NULL, "\n"))) {
+        fprintf(err, "Error: no valid RAM_BASE in configuration!\n");
         return false;
     }
-    cfg->mem_base = strtol(token, 0, 16);
+    cfg->mem_base = strtoll(token, 0, 16);
 
     // Memory Top
     if(fgets(line, 256, cfg_file) != line) {
-        fprintf(err, "Error: failed to read MEM_TOP from configuration file!\n");
+        fprintf(err, "Error: failed to read RAM_TOP from configuration file!\n");
         return false;
     }
     token = strtok(line, "=");
-    if(strcmp(token, "MEM_TOP") || !(token = strtok(NULL, "\n"))) {
-        fprintf(err, "Error: no valid MEM_TOP in configuration!\n");
+    if(strcmp(token, "RAM_TOP") || !(token = strtok(NULL, "\n"))) {
+        fprintf(err, "Error: no valid RAM_TOP in configuration!\n");
         return false;
     }
-    cfg->mem_top=strtol(token, 0, 16);
+    cfg->mem_top = strtoll(token, 0, 16);
 
-    // Boot Length Min
-    if(fgets(line, 256, cfg_file) != line)
-        cfg->boot_length_min = 0;
-    else {
-        token = strtok(line, "=");
-        if(!strcmp(token, "BOOT_LENGTH_MIN") && (token = strtok(NULL, "\n")))
-            cfg->boot_length_min = atoi(token);
-        else
-            cfg->boot_length_min = 0;
+    // I/O Base
+    if(fgets(line, 256, cfg_file) != line) {
+        fprintf(err, "Error: failed to read MIO_BASE from configuration file!\n");
+        return false;
     }
+    token = strtok(line, "=");
+    if(strcmp(token, "MIO_BASE") || !(token = strtok(NULL, "\n"))) {
+        fprintf(err, "Error: no valid MIO_BASE in configuration!\n");
+        return false;
+    }
+    cfg->mio_base = strtoll(token, 0, 16);
 
-    // Boot Length Max
-    if(fgets(line, 256, cfg_file) != line)
-        cfg->boot_length_max = 0;
-    else {
-        token = strtok(line, "=");
-        if(!strcmp(token, "BOOT_LENGTH_MAX") && (token = strtok(NULL, "\n")))
-            cfg->boot_length_max = atoi(token);
-        else
-            cfg->boot_length_max = 0;
+    // I/O Top
+    if(fgets(line, 256, cfg_file) != line) {
+        fprintf(err, "Error: failed to read MIO_TOP from configuration file!\n");
+        return false;
     }
+    token = strtok(line, "=");
+    if(strcmp(token, "MIO_TOP") || !(token = strtok(NULL, "\n"))) {
+        fprintf(err, "Error: no valid MIO_TOP in configuration!\n");
+        return false;
+    }
+    cfg->mio_top = strtoll(token, 0, 16);
 
     // Node Id
     if(fgets(line, 256, cfg_file) != line)
@@ -459,6 +499,21 @@ bool parse_config(FILE * cfg_file, Configuration * cfg)
         }
     }
 
+    // Determine if BOOT is needed and how it must be handled
+    if(!strcmp(cfg->mach, "pc")) {
+        cfg->need_boot = true;
+        cfg->boot_length_min = 512;
+        cfg->boot_length_max = 512;
+    } else {
+        cfg->need_boot = false;
+        cfg->boot_length_min = 0;
+        cfg->boot_length_max = 0;
+    }
+
+    // Determine if System_Info is needed and how it must be handled
+    cfg->need_si = (!strcmp(cfg->mach, "pc") || !strcmp(cfg->mach, "riscv") || !strcmp(cfg->mach, "cortex"));
+    cfg->si_in_setup = cfg->need_si && !cfg->need_boot; // If the image contains a boot sector, then SI will be on a separate disk sector. Otherwise, it will be inside SETUP.
+
     return true;
 }
 
@@ -474,9 +529,9 @@ template<typename T> bool add_boot_map(int fd, System_Info * si)
     if(!put_number(fd, static_cast<T>(si->bm.mem_top)))
         return false;
 
-    if(!put_number(fd, static_cast<T>(0))) // io_base
+    if(!put_number(fd, static_cast<T>(si->bm.mio_base)))
         return false;
-    if(!put_number(fd, static_cast<T>(0))) // io_top
+    if(!put_number(fd, static_cast<T>(si->bm.mio_top)))
         return false;
 
     if(!put_number(fd, si->bm.node_id))
@@ -512,9 +567,9 @@ template<typename T> bool add_boot_map(int fd, System_Info * si)
 //=============================================================================
 bool add_machine_secrets(int fd, unsigned int i_size, char * mach, char * mmod)
 {
-    if (!strcmp(mach, "pc")) { // PC
+    if(!strcmp(mach, "pc")) { // PC
         const unsigned int floppy_size   = 1474560;
-        const unsigned int secrets_offset   = CONFIG.boot_length_min - 6;
+        const unsigned int secrets_offset   = 512 - 6;
         const unsigned short boot_id        = 0xaa55;
         const unsigned short num_sect       = ((i_size + 511) / 512);
         const unsigned short last_track_sec = num_sect <= 2880 ? 19 : 49; // either 144 tracks with 20 sectors or 144 tracks with 50 sectors
@@ -552,7 +607,7 @@ bool add_machine_secrets(int fd, unsigned int i_size, char * mach, char * mmod)
         char key_string[] = ":020000040027D3\r\n:0CFFD400FFFFFFEF000000000000200015\r\n:00000001FF\r\n"; // Bootloader Disabled
         const int key_offset = -strlen(":00000001FF\r\n");
 
-        // Write key string to unlock epos
+        // Write key string to unlock EPOS
         if(lseek(fd,key_offset,SEEK_END) < 0) {
             fprintf(err, "Error: can't seek the boot image!\n");
             return false;

@@ -1,53 +1,56 @@
-// EPOS RISC-V Memory Map
+// EPOS SiFive-U (RISC-V) Memory Map
 
-#ifndef __riscv_memory_map_h
-#define __riscv_memory_map_h
+#ifndef __riscv_sifive_u_memory_map_h
+#define __riscv_sifive_u_memory_map_h
 
 
 #include <system/memory_map.h>
-
 
 __BEGIN_SYS
 
 struct Memory_Map
 {
-    // Physical Memory
     enum {
-        UART_BASE                   = 0x10000000, // 16500A NS UART
-        TIMER_BASE                  = 0x02004000, // CLINT
-        GPIOA_BASE                  = 0x03000000, // gpex_ioport
-        RTC_BASE                    = 0x00101000, // goldfish_rtc
+        NOT_USED        = Traits<Machine>::NOT_USED,
 
-        CLINT_BASE                  = 0x02000000, // Sifive CLINT
-        PLIIC_CPU_BASE              = 0x0c000000, // Sifive PLIC
-        PRIVATE_TIMER_BASE          = 0x02004000 // mtime base
-    };
+        // Physical Memory
+        RAM_BASE        = Traits<Machine>::RAM_BASE,
+        RAM_TOP         = Traits<Machine>::RAM_TOP,
+        MIO_BASE        = Traits<Machine>::MIO_BASE,
+        MIO_TOP         = Traits<Machine>::MIO_TOP,
+        BOOT_STACK      = Traits<Machine>::BOOT_STACK,
 
-    // Physical Memory
-    enum {
-        MEM_BASE        = Traits<Machine>::MEM_BASE,
-        MEM_TOP         = Traits<Machine>::MEM_TOP
-    };
+        // Memory-mapped devices
+        TEST_BASE       = 0x00100000, // SiFive test engine
+        RTC_BASE        = 0x00101000, // Goldfish RTC
+        UART_BASE       = 0x10000000, // NS16550A UART
+        CLINT_BASE      = 0x02000000, // SiFive CLINT
+        TIMER_BASE      = 0x02004000, // CLINT Timer
+        PLIIC_CPU_BASE  = 0x0c000000, // SiFive PLIC
 
-    // Logical Address Space
-    enum {
-        APP_LOW         = Traits<Machine>::APP_LOW,
-        APP_CODE        = Traits<Machine>::APP_CODE,
-        APP_DATA        = Traits<Machine>::APP_DATA,
+        // Logical Address Space
+        BOOT            = Traits<System>::multitask ? Traits<Machine>::BOOT : NOT_USED,
+        IMAGE           = Traits<Machine>::IMAGE,
+        SETUP           = Traits<System>::multitask ? Traits<Machine>::SETUP : NOT_USED,
+        INIT            = Traits<System>::multitask ? Traits<Machine>::INIT : NOT_USED,
+
+        APP_LOW         = Traits<System>::multitask ? Traits<Machine>::APP_LOW : Traits<Machine>::SETUP,
+        APP_CODE        = APP_LOW,
+        APP_DATA        = Traits<System>::multitask ? APP_LOW + 4 * 1024 * 1024 : APP_LOW,
         APP_HIGH        = Traits<Machine>::APP_HIGH,
 
         PHY_MEM         = Traits<Machine>::PHY_MEM,
-        IO              = Traits<Machine>::IO_BASE,
+        IO              = Traits<Machine>::IO,
 
         SYS             = Traits<Machine>::SYS,
-        SYS_INFO        = unsigned(-1),                                 // Usually not used during boot. Dynamically built during initialization.
-        SYS_CODE        = Traits<Machine>::SYS_CODE,
-        SYS_DATA        = Traits<Machine>::SYS_DATA,
-        SYS_HEAP        = SYS_DATA,                                     // Not used for Cortex-M because multiheap can only be enabled with an MMU.
-        SYS_STACK       = MEM_TOP + 1 - Traits<Machine>::STACK_SIZE     // This stack is used before main(). The stack pointer is initialized at crt0.S
+        SYS_CODE        = Traits<System>::multitask ? SYS + 0x00000000 : NOT_USED,
+        SYS_INFO        = Traits<System>::multitask ? SYS + 0x00100000 : NOT_USED,
+        SYS_PT          = Traits<System>::multitask ? SYS + 0x00101000 : NOT_USED,
+        SYS_PD          = Traits<System>::multitask ? SYS + 0x00102000 : NOT_USED,
+        SYS_DATA        = Traits<System>::multitask ? SYS + 0x00103000 : NOT_USED,
+        SYS_STACK       = Traits<System>::multitask ? SYS + 0x00200000 : NOT_USED,
+        SYS_HEAP        = Traits<System>::multitask ? SYS + 0x00400000 : NOT_USED
     };
-
-    // Logical Address Space
 };
 
 __END_SYS

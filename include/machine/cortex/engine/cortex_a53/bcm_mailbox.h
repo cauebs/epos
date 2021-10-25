@@ -68,7 +68,8 @@ public:
         CORE3_MAILBOX0_IRQ              = 108,
         CORE3_MAILBOX1_IRQ              = 109,
         CORE3_MAILBOX2_IRQ              = 110,
-        CORE3_MAILBOX3_IRQ              = 111
+        CORE3_MAILBOX3_IRQ              = 111,
+        CORE0_MAILBOX_TIMER_IRQ         = 112
     };
 };
 
@@ -190,7 +191,8 @@ public:
     }
 
     void enable(int i) {
-        mailbox(CORE0_MBOX_INT_CTRL + (i % 32)) |= 1 << i % 4;
+        if(i <= CORE3_MAILBOX3_IRQ)
+            mailbox(CORE0_MBOX_INT_CTRL + (i % 32)) |= 1 << i % 4;
     }
 
     void disable() {
@@ -201,7 +203,8 @@ public:
     }
 
     void disable(int i) {
-        mailbox(CORE0_MBOX_INT_CTRL + (i % 32)) &= ~(1 << i % 4);
+        if(i <= CORE3_MAILBOX3_IRQ)
+            mailbox(CORE0_MBOX_INT_CTRL + (i % 32)) &= ~(1 << i % 4);
     }
 
     Interrupt_Id int_id() {
@@ -211,6 +214,8 @@ public:
         // 0x10 = CPU 0 | 0x20 = CPU 1 | 0x40 = CPU 2 | 0x80 = CPU 3
         if (src & 0x10 || src & 0x20 || src & 0x40 || src & 0x80)
             return CORE0_MAILBOX0_IRQ;
+        else if (src & 0x800)
+            return CORE0_MAILBOX_TIMER_IRQ;
         else
             return LAST_INT;
     }

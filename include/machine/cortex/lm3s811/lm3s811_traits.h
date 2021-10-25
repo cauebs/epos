@@ -20,32 +20,32 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int NOT_USED          = 0xffffffff;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
 
-    // Boot Image
-    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
-    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
-
     // Physical Memory
-    static const unsigned int MEM_BASE          = 0x20000000;
-    static const unsigned int MEM_TOP           = 0x20001fff; // 8 KB (MAX for 32-bit is 0x70000000 / 1792 MB)
-    static const unsigned int BOOT_STACK        = 0x20001ffc; // MEM_TOP - sizeof(int)
+    static const unsigned int ROM_BASE          = 0x00000000;
+    static const unsigned int ROM_TOP           = 0x00010000;   // 64 KB
+    static const unsigned int RAM_BASE          = 0x20000000;
+    static const unsigned int RAM_TOP           = 0x20001fff;   // 8 KB
+    static const unsigned int MIO_BASE          = 0x40000000;
+    static const unsigned int MIO_TOP           = 0x440067ff;
+    static const unsigned int VECTOR_TABLE      = 0x00200000;
 
-    // Logical Memory Map
+    // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;
+    static const unsigned int BOOT_STACK        = 0x20001ffc;   // RAM_TOP - sizeof(int)
+    static const unsigned int IMAGE             = NOT_USED;
     static const unsigned int SETUP             = NOT_USED;
+
+    // Logical Memory Map (this machine only supports mode LIBRARY, so these are indeed also physical addresses)
+    static const unsigned int APP_LOW           = RAM_BASE;
+    static const unsigned int APP_HIGH          = RAM_TOP;
+
+    static const unsigned int APP_CODE          = ROM_BASE;
+    static const unsigned int APP_DATA          = RAM_BASE;
+
     static const unsigned int INIT              = NOT_USED;
-
-    static const unsigned int APP_LOW           = 0x20000000;
-    static const unsigned int APP_CODE          = 0x00000000;
-    static const unsigned int APP_DATA          = 0x20000000;
-    static const unsigned int APP_HIGH          = 0x20001fff; // 8 KB
-
-    static const unsigned int PHY_MEM           = 0x20000000;
-    static const unsigned int IO_BASE           = 0x40000000;
-    static const unsigned int IO_TOP            = 0x440067ff;
-
-    static const unsigned int SYS               = 0x00200000;
-    static const unsigned int SYS_CODE          = 0x00200000; // Library mode only => APP + SYS
-    static const unsigned int SYS_DATA          = 0x20000000; // Library mode only => APP + SYS
+    static const unsigned int PHY_MEM           = NOT_USED;
+    static const unsigned int IO                = NOT_USED;
+    static const unsigned int SYS               = NOT_USED;
 
     // Default Sizes and Quantities
     static const unsigned int STACK_SIZE        = 512;
