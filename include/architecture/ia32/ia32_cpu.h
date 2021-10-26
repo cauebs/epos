@@ -336,7 +336,7 @@ public:
     static Reg fr() { return eax(); }
     static void fr(Reg r) { eax(r); }
 
-    static unsigned int id();
+    static volatile unsigned int id();
     static unsigned int cores() { return smp ? _cores : 1; }
 
     static Hertz clock() { return _cpu_current_clock; }

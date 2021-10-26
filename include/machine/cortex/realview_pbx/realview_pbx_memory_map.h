@@ -36,13 +36,25 @@ struct Memory_Map: public Cortex_Memory_Map
         TSC_BASE                = GLOBAL_TIMER_BASE,
         PRIVATE_TIMER_BASE      = 0x1f000600,
         GIC_DIST_BASE           = 0x1f001000,
+        VECTOR_TABLE    = Traits<Machine>::VECTOR_TABLE,
 
-        // Logical Address Space
-        SYS_CODE                = Traits<Machine>::SYS_CODE,
-        SYS_INFO                = NOT_USED,
-        SYS_DATA                = Traits<Machine>::SYS_CODE,
-        SYS_STACK               = NOT_USED,
-        SYS_HEAP                = NOT_USED
+        // Logical Address Space -- Need to be verified
+        APP_LOW         = Traits<Machine>::APP_LOW,
+        APP_HIGH        = Traits<Machine>::APP_HIGH,
+
+        APP_CODE        = Traits<Machine>::APP_CODE,
+        APP_DATA        = Traits<Machine>::APP_DATA,
+
+        PHY_MEM         = Traits<Machine>::PHY_MEM,
+        IO              = Traits<Machine>::IO,
+        SYS             = Traits<Machine>::SYS,
+        SYS_CODE        = Traits<System>::multitask ? SYS + 0x00000000 : NOT_USED,
+        SYS_INFO        = Traits<System>::multitask ? SYS + 0x00100000 : NOT_USED,
+        SYS_PT          = Traits<System>::multitask ? SYS + 0x00101000 : NOT_USED, // 4KB = 256 + 256 + 256 entries to map from SYS to SYS_STACK
+        SYS_PD          = Traits<System>::multitask ? SYS + 0x00102000 : NOT_USED, // 16KB mem == 4k PD entries
+        SYS_DATA        = Traits<System>::multitask ? SYS + 0x00106000 : NOT_USED,
+        SYS_STACK       = Traits<System>::multitask ? SYS + 0x00200000 : NOT_USED, // 16KB mem == STACK_SIZE
+        SYS_HEAP        = Traits<System>::multitask ? SYS + 0x00300000 : NOT_USED
     };
 };
 

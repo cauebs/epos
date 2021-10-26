@@ -227,7 +227,7 @@ inline static void enable_mmu() {
         ");
 }
 
-inline static void clear_bss() {
+inline static void _clear_bss() {
     CPU::Reg32 bss_start, bss_end;
     ASM("LDR %0, =__bss_start__" : "=r"(bss_start) :);
     ASM("LDR %0, =__bss_end__" : "=r"(bss_end) :);
@@ -290,7 +290,7 @@ void Realview_PBX::pre_init()
 
         // secondary cores reset is now on Machine::pre_init()
 
-        clear_bss();
+        _clear_bss();
     } else {
         //clear_interrupt();
         scu()->secure_invalidate();

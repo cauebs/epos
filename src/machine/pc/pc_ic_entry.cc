@@ -797,18 +797,18 @@ void IC::int_not(Interrupt_Id i)
 }
 
 // Exception and fault handlers
-void IC::exc_not(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error)
+void IC::exc_not(Reg eip, Reg cs, Reg eflags, Reg error)
 {
     db<IC,Machine>(WRN) << "IC::exc_not(cs=" << hex << cs << ",ip=" << reinterpret_cast<void *>(eip) << ",fl=" << eflags << ")" << endl;
     db<IC,Machine>(WRN) << "The running thread will now be terminated!" << endl;
     _exit(-1);
 }
 
-void IC::exc_pf(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error)
+void IC::exc_pf(Reg eip, Reg cs, Reg eflags, Reg error)
 {
-    register Reg32 fr = CPU::fr();
+    register Reg fr = CPU::fr();
 
-    if(CPU::cr2() == reinterpret_cast<CPU::Reg32>(&__exit)) {
+    if(CPU::cr2() == reinterpret_cast<CPU::Reg>(&__exit)) {
         db<IC,Machine>(INF) << "IC::exc_pf[address=" << reinterpret_cast<void *>(CPU::cr2()) << "]: final return!" << endl;
        _exit(fr);
     }
@@ -828,14 +828,14 @@ void IC::exc_pf(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error)
     _exit(-1);
 }
 
-void IC::exc_gpf(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error)
+void IC::exc_gpf(Reg eip, Reg cs, Reg eflags, Reg error)
 {
     db<IC,Machine>(WRN) << "IC::exc_gpf(cs=" << hex << cs << ",ip=" << reinterpret_cast<void *>(eip) << ",fl=" << eflags << ")" << endl;
     db<IC,Machine>(WRN) << "The running thread will now be terminated!" << endl;
     _exit(-1);
 }
 
-void IC::exc_fpu(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error)
+void IC::exc_fpu(Reg eip, Reg cs, Reg eflags, Reg error)
 {
     db<IC,Machine>(WRN) << "IC::exc_fpu(cs=" << hex << cs << ",ip=" << reinterpret_cast<void *>(eip) << ",fl=" << eflags << ")" << endl;
     db<IC,Machine>(WRN) << "The running thread will now be terminated!" << endl;

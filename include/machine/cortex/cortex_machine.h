@@ -27,16 +27,15 @@ public:
     Machine() {}
 
     using Engine::delay;
+    using Engine::clear_bss;
 
     static void panic();
 
-    static void reboot()
-    {
+    static void reboot() {
         db<Machine>(WRN) << "Machine::reboot()" << endl;
         Engine::reboot();
     }
-    static void poweroff()
-    {
+    static void poweroff() {
         db<Machine>(WRN) << "Machine::poweroff()" << endl;
         Engine::poweroff();
     }

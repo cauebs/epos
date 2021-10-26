@@ -150,7 +150,7 @@ class APIC
 private:
     typedef CPU::Reg8 Reg8;
     typedef CPU::Reg16 Reg16;
-    typedef CPU::Reg32 Reg32;
+    typedef CPU::Reg Reg;
     typedef CPU::Reg64 Reg64;
     typedef CPU::Log_Addr Log_Addr;
 
@@ -320,27 +320,27 @@ public:
     }
 
     static void enable() {
-        Reg32 v = read(SVR);
+        Reg v = read(SVR);
         v |= SVR_APIC_ENABLED;
         write(SVR, v);
     }
     static void enable(int i) { enable(); }
 
     static void disable() {
-        Reg32 v  = read(SVR);
+        Reg v  = read(SVR);
         v &= ~SVR_APIC_ENABLED;
         write(SVR, v);
     }
     static void disable(int i) { disable(); }
 
-    static Reg32 read(unsigned int reg) {
-        return *static_cast<volatile Reg32 *>(_base + reg);
+    static Reg read(unsigned int reg) {
+        return *static_cast<volatile Reg *>(_base + reg);
     }
-    static void write(unsigned int reg, Reg32 v) {
-        *static_cast<volatile Reg32 *>(_base + reg) = v;
+    static void write(unsigned int reg, Reg v) {
+        *static_cast<volatile Reg *>(_base + reg) = v;
     }
 
-    static int id() {
+    static volatile unsigned int id() {
         return (read(ID) & ID_MASK) >> ID_SHIFT;
     }
     static int version() {
@@ -369,8 +369,8 @@ public:
         return true;
     }
 
-    static void config_timer(Reg32 count, bool interrupt, bool periodic) {
-        Reg32 v = INT_TIMER;
+    static void config_timer(Reg count, bool interrupt, bool periodic) {
+        Reg v = INT_TIMER;
         v |= (interrupt) ? 0 : TIMER_MASKED;
         v |= (periodic) ? TIMER_PERIODIC : 0;
         write(TIMER_INITIAL, count / 16);
@@ -386,7 +386,7 @@ public:
         write(LVT_TIMER, read(LVT_TIMER) | TIMER_MASKED);
     }
 
-    static Reg32 read_timer() {
+    static Reg read_timer() {
         return read(TIMER_CURRENT);
     }
 
@@ -396,8 +396,8 @@ public:
         enable();
     }
 
-    static void config_pmu(const Reg32 & i) {
-        Reg32 v = i;
+    static void config_pmu(const Reg & i) {
+        Reg v = i;
         write(LVT_PERF, v);
     }
 
@@ -410,7 +410,7 @@ public:
 
 private:
     static int maxlvt() {
-        Reg32 v = read(VERSION);
+        Reg v = read(VERSION);
         // 82489DXs do not report # of LVT entries
         return (v & 0xf) ? (v >> 16) & 0xff : 2;
     }
@@ -473,7 +473,7 @@ class IC: private IC_Common, private IF<Traits<System>::multicore, APIC, i8259A>
 private:
     typedef IF<Traits<System>::multicore, APIC, i8259A>::Result Engine;
 
-    typedef CPU::Reg32 Reg32;
+    typedef CPU::Reg Reg;
     typedef CPU::Log_Addr Log_Addr;
 
 public:
@@ -540,16 +540,22 @@ private:
 
     // Physical handlers
     static void entry();
-    static void exc_not(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error);
-    static void exc_pf (Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error);
-    static void exc_gpf(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error);
-    static void exc_fpu(Reg32 eip, Reg32 cs, Reg32 eflags, Reg32 error);
+    static void exc_not(Reg eip, Reg cs, Reg eflags, Reg error);
+    static void exc_pf (Reg eip, Reg cs, Reg eflags, Reg error);
+    static void exc_gpf(Reg eip, Reg cs, Reg eflags, Reg error);
+    static void exc_fpu(Reg eip, Reg cs, Reg eflags, Reg error);
 
     static void init();
 
 private:
     static Interrupt_Handler _int_vector[INTS];
 };
+
+// Core id in IA32 is handled by the APIC
+inline volatile unsigned int CPU::id()
+{
+    return smp ? APIC::id() : 0;
+}
 
 __END_SYS
 

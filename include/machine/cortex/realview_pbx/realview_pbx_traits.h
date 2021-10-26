@@ -21,8 +21,8 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int CPUS              = Traits<Build>::CPUS;
 
     // Physical Memory
-    static const unsigned int MEM_BASE          = 0x00000000;
-    static const unsigned int MEM_TOP           = 0x07ffffff;   // 128 MB
+    static const unsigned int RAM_BASE          = 0x00000000;
+    static const unsigned int RAM_TOP           = 0x07ffffff;   // 128 MB
     static const unsigned int VECTOR_TABLE      = 0x00010000;   // Defined by uboot@QEMU
     static const unsigned int PAGE_TABLES       = 0x07f00000;   // MEM_TOP - 16 MB
     static const unsigned int MIO_BASE          = 0x10000000;

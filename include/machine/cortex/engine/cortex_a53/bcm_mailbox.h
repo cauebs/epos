@@ -14,6 +14,7 @@ class BCM_IC_Common: public IC_Common
 {
 protected:
     typedef CPU::Reg32 Reg32;
+    typedef CPU::Log_Addr Log_Addr;
 
 public:
     // IRQs

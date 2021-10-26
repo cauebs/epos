@@ -41,7 +41,7 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int INIT              = 0x00200000;   // 2 MB (only used during boot)
     static const unsigned int PHY_MEM           = 0x80000000; 	// 2 GB (max 1792 MB)
     static const unsigned int IO                = 0xf0000000; 	// 4 GB - 256 MB  (max 244 MB)
-    static const unsigned int SYS               = 0xff400000;   // 4 GB - 12 MB
+    static const unsigned int SYS               = 0xff800000;   // 4 GB - 8 MB
 
     // Default Sizes and Quantities
     static const unsigned int STACK_SIZE        = 16 * 1024;

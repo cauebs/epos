@@ -24,24 +24,22 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     // Using only DDR memory for data, OCM doesn't support exclusive accesses
     // needed for atomic operations. The vector table must be placed at
     // 0x00000000.
-    static const unsigned int MEM_BASE          = 0x00000000;
-    static const unsigned int MEM_TOP           = 0x080fffff;   // 129 MB
+    static const unsigned int RAM_BASE          = 0x00000000;
+    static const unsigned int RAM_TOP           = 0x080fffff;   // 129 MB
     static const unsigned int MIO_BASE          = 0xe0000000;
     static const unsigned int MIO_TOP           = 0xf8ffffff;
 
-    // Boot Image
-    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
-    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
-    static const unsigned int BOOT_STACK        = 0x080ffffc;   // MEM_TOP - sizeof(int)
-
-    // Logical Memory Map
+    // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;
+    static const unsigned int BOOT_STACK        = 0x080ffffc;   // MEM_TOP - sizeof(int)
     static const unsigned int IMAGE             = NOT_USED;
     static const unsigned int SETUP             = NOT_USED;
     static const unsigned int INIT              = NOT_USED;
 
-    static const unsigned int APP_LOW           = MEM_BASE;
-    static const unsigned int APP_CODE          = MEM_BASE;
+    // Logical Memory Map
+    static const unsigned int VECTOR_TABLE      = 0;
+    static const unsigned int APP_LOW           = RAM_BASE;
+    static const unsigned int APP_CODE          = RAM_BASE;
     static const unsigned int APP_DATA          = 0x03100000;   // 192 MB
     static const unsigned int APP_HIGH          = 0x06100000;   // 384 MB
 

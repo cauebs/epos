@@ -915,7 +915,7 @@ void _reset()
     if(!Traits<Machine>::SIMULATED) {
         CPU::Reg cpsr = CPU::cpsr();
         cpsr &= ~CPU::FLAG_M;           // clear mode bits
-        cpsr |= CPU::FLAG_SVC;          // set supervisor flag
+        cpsr |= CPU::MODE_SVC;          // set supervisor flag
         CPU::cpsrc(cpsr);               // enter supervisor mode
         CPU::Reg address = CPU::ra();
         CPU::elr_hyp(address);
@@ -923,7 +923,7 @@ void _reset()
     }
 
     // Configure a stack for SVC mode, which will be used until the first Thread is created
-    CPU::cpsrc(CPU::FLAG_I | CPU::FLAG_F | CPU::FLAG_SVC); // enter SVC mode with interrupts disabled
+    CPU::mode(CPU::MODE_SVC); // enter SVC mode (with interrupts disabled)
     CPU::sp(Traits<Machine>::BOOT_STACK + Traits<Machine>::STACK_SIZE * CPU::id());
 
     if(CPU::id() == 0) {

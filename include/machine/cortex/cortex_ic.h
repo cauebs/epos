@@ -85,8 +85,8 @@ public:
     }
 
 private:
-    static void dispatch(unsigned int i);
-    static void eoi(unsigned int i);
+    static void dispatch(Interrupt_Id i);
+    static void eoi(Interrupt_Id i);
 
     // Logical handlers
     static void int_not(Interrupt_Id i);
@@ -100,6 +100,8 @@ private:
     static void data_abort() __attribute__ ((naked));
     static void reserved() __attribute__ ((naked));
     static void fiq() __attribute__ ((naked));
+
+    static void kill();
 
     static void init();
 

@@ -3,12 +3,8 @@
 #ifndef __ia32_mmu_h
 #define __ia32_mmu_h
 
-#include <architecture/cpu.h>
 #include <architecture/mmu.h>
 #include <system/memory_map.h>
-#include <utility/string.h>
-#include <utility/list.h>
-#include <utility/debug.h>
 
 __BEGIN_SYS
 
@@ -25,6 +21,7 @@ private:
     static const unsigned int RAM_BASE = Memory_Map::RAM_BASE;
     static const unsigned int APP_LOW = Memory_Map::APP_LOW;
     static const unsigned int PHY_MEM = Memory_Map::PHY_MEM;
+    static const unsigned int SYS = Memory_Map::SYS;
 
 public:
     // Page Flags
@@ -52,6 +49,7 @@ public:
             APIC = (SYS | PCD),
             VGA  = (SYS | PCD),
             DMA  = (SYS | PCD | CT),
+            MASK = (1 << 12) - 1
         };
 
     public:
@@ -80,7 +78,7 @@ public:
         Page_Table() {}
 
         PT_Entry & operator[](unsigned int i) { return _entry[i]; }
-        Page_Table & operator*() { return *static_cast<Page_Table *>(phy2log(this)); }
+        Page_Table & log() { return *static_cast<Page_Table *>(phy2log(this)); }
 
         void map(int from, int to, Page_Flags flags, Color color) {
             Phy_Addr * addr = alloc(to - from, color);
@@ -89,7 +87,7 @@ public:
             else
                 for( ; from < to; from++) {
                     Log_Addr * pte = phy2log(&_entry[from]);
-                    *pte = alloc(1, color) | flags;
+                    *pte = phy2pte(alloc(1, color), flags);
                 }
         }
 
@@ -101,7 +99,7 @@ public:
             addr = align_page(addr);
             for( ; from < to; from++) {
                 Log_Addr * pte = phy2log(&_entry[from]);
-                *pte = addr | flags;
+                *pte = phy2pte(addr, flags);
                 addr += sizeof(Page);
             }
         }
@@ -226,7 +224,7 @@ public:
         void activate() const { MMU::pd(_pd); }
 
         Log_Addr attach(const Chunk & chunk, unsigned int from = directory(APP_LOW)) {
-            for(unsigned int i = from; i < PD_ENTRIES; i++)
+            for(unsigned int i = from; (i + chunk.pts()) <= PD_ENTRIES; i++)
                 if(attach(i, chunk.pt(), chunk.pts(), chunk.flags()))
                     return i << DIRECTORY_SHIFT;
             return Log_Addr(false);
@@ -234,6 +232,8 @@ public:
 
         Log_Addr attach(const Chunk & chunk, Log_Addr addr) {
             unsigned int from = directory(addr);
+            if((from + chunk.pts()) < PD_ENTRIES)
+                return Log_Addr(false);
             if(attach(from, chunk.pt(), chunk.pts(), chunk.flags()))
                 return from << DIRECTORY_SHIFT;
             return Log_Addr(false);
@@ -241,7 +241,7 @@ public:
 
         void detach(const Chunk & chunk) {
             for(unsigned int i = 0; i < PD_ENTRIES; i++) {
-                if(indexes((*_pd)[i]) == indexes(chunk.pt())) {
+                if(indexes(pte2phy((*_pd)[i])) == indexes(chunk.pt())) {
                     detach(i, chunk.pt(), chunk.pts());
                     return;
                 }
@@ -251,7 +251,7 @@ public:
 
         void detach(const Chunk & chunk, Log_Addr addr) {
             unsigned int from = directory(addr);
-            if(indexes((*_pd)[from]) != indexes(chunk.pt())) {
+            if(indexes(pte2phy((*_pd)[from])) != indexes(chunk.pt())) {
                 db<MMU>(WRN) << "MMU::Directory::detach(pt=" << chunk.pt() << ",addr=" << addr << ") failed!" << endl;
                 return;
             }
@@ -260,18 +260,18 @@ public:
 
         Phy_Addr physical(Log_Addr addr) {
             PD_Entry pde = (*_pd)[directory(addr)];
-            Page_Table * pt = static_cast<Page_Table *>(pde);
-            PT_Entry pte = (*pt)[page(addr)];
+            Page_Table * pt = static_cast<Page_Table *>(pde2phy(pde));
+            PT_Entry pte = pt->log()[page(addr)];
             return pte | offset(addr);
         }
 
     private:
         bool attach(unsigned int from, const Page_Table * pt, unsigned int n, Page_Flags flags) {
             for(unsigned int i = from; i < from + n; i++)
-                if((*_pd)[i])
+                if(_pd->log()[i])
                     return false;
             for(unsigned int i = from; i < from + n; i++, pt++)
-                (*_pd)[i] = Phy_Addr(pt) | flags;
+                _pd->log()[i] = phy2pde(Phy_Addr(pt), flags);
             return true;
         }
 
@@ -293,7 +293,7 @@ public:
     public:
         DMA_Buffer(unsigned int s) : Chunk(s, Page_Flags::DMA) {
             Directory dir(current());
-            _log_addr = dir.attach(*this, MMU::directory(PHY_MEM));
+            _log_addr = dir.attach(*this);
             db<MMU>(TRC) << "MMU::DMA_Buffer() => " << *this << endl;
         }
 
@@ -323,14 +323,14 @@ public:
 
         friend OStream & operator<<(OStream & os, const Translation & t) {
             Page_Directory * pd = t._pd ? t._pd : current();
-            PD_Entry pde = (*pd)[directory(t._addr)];
-            Page_Table * pt = static_cast<Page_Table *>(pde);
-            PT_Entry pte = (*pt)[page(t._addr)];
+            PD_Entry pde = pd->log()[directory(t._addr)];
+            Page_Table * pt = static_cast<Page_Table *>(pde2phy(pde));
+            PT_Entry pte = pt->log()[page(t._addr)];
 
             os << "{addr=" << static_cast<void *>(t._addr) << ",pd=" << pd << ",pd[" << directory(t._addr) << "]=" << pde << ",pt=" << pt;
             if(t._show_pt)
-                os << "=>" << *pt;
-            os << ",pt[" << page(t._addr) << "]=f=" << pte << ",*addr=" << hex << *static_cast<unsigned int *>(t._addr) << "}";
+                os << "=>" << pt->log();
+            os << ",pt[" << page(t._addr) << "]=" << pte << ",f=" << pte2phy(pte) << ",*addr=" << hex << *static_cast<unsigned int *>(t._addr) << "}";
             return os;
         }
 
@@ -400,8 +400,28 @@ public:
 
     static Phy_Addr physical(Log_Addr addr) {
         Page_Directory * pd = current();
-        Page_Table * pt = (*pd)[directory(addr)];
-        return (*pt)[page(addr)] | offset(addr);
+        Page_Table * pt = pd->log()[directory(addr)];
+        return pt->log()[page(addr)] | offset(addr);
+    }
+
+    static PT_Entry phy2pte(Phy_Addr frame, Page_Flags flags) { return frame | flags; }
+    static Phy_Addr pte2phy(PT_Entry entry) { return (entry & ~Page_Flags::MASK); }
+    static PD_Entry phy2pde(Phy_Addr frame, Page_Flags flags) { return frame | flags; }
+    static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::MASK); }
+
+    static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy - (RAM_BASE - PHY_MEM) : phy + (PHY_MEM - RAM_BASE)); }
+    static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log + (RAM_BASE - PHY_MEM) : log - (PHY_MEM - RAM_BASE)); }
+
+    static Color phy2color(Phy_Addr phy) { return static_cast<Color>(colorful ? ((phy >> PAGE_SHIFT) & 0x7f) % COLORS : WHITE); } // TODO: what is 0x7f
+
+    static Color log2color(Log_Addr log) {
+        if(colorful) {
+            Page_Directory * pd = current();
+            Page_Table * pt = pd->log()[directory(log)];
+            Phy_Addr phy = pt->log()[page(log)] | offset(log);
+            return static_cast<Color>(((phy >> PAGE_SHIFT) & 0x7f) % COLORS);
+        } else
+            return WHITE;
     }
 
 private:
@@ -412,20 +432,6 @@ private:
     static void flush_tlb(Log_Addr addr) { CPU::flush_tlb(addr); }
 
     static void init();
-
-    static Log_Addr phy2log(Phy_Addr phy) { return phy | PHY_MEM; }
-
-    static Color phy2color(Phy_Addr phy) { return static_cast<Color>(colorful ? ((phy >> PAGE_SHIFT) & 0x7f) % COLORS : WHITE); } // TODO: what is 0x7f
-
-    static Color log2color(Log_Addr log) {
-        if(colorful) {
-            Page_Directory * pd = current();
-            Page_Table * pt = (*pd)[directory(log)];
-            Phy_Addr phy = (*pt)[page(log)] | offset(log);
-            return static_cast<Color>(((phy >> PAGE_SHIFT) & 0x7f) % COLORS);
-        } else
-            return WHITE;
-    }
 
 private:
     static List _free[colorful * COLORS + 1]; // +1 for WHITE

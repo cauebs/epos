@@ -48,11 +48,8 @@ private:
 public:
     eMote3() {}
 
-    static void delay(const Microsecond & time) {
-        assert(Traits<TSC>::enabled);
-        TSC::Time_Stamp end = TSC::time_stamp() + Convert::us2count<TSC::Time_Stamp, Microsecond>(TSC::frequency(), time);
-        while(end > TSC::time_stamp());
-    }
+    using Machine_Common::delay;
+    using Machine_Common::clear_bss;
 
     static void reboot() {
         // call ROM function to reboot

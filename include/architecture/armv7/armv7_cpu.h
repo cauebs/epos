@@ -199,8 +199,7 @@ public:
         FLAG_V          = 1 << 28,      // Overflow
         FLAG_C          = 1 << 29,      // Carry
         FLAG_Z          = 1 << 30,      // Zero
-        FLAG_N          = 1 << 31,      // Negative
-        FLAG_DEFAULTS   = FLAG_THUMB
+        FLAG_N          = 1 << 31       // Negative
     };
 
     // Exceptions
@@ -223,7 +222,7 @@ public:
     {
     public:
         Context() {}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): ARMv7::Context(usp, exit | thumb, FLAG_DEFAULTS, exit | thumb, entry | thumb) {}
+        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): ARMv7::Context(usp, exit | thumb, FLAG_THUMB, exit | thumb, entry | thumb) {}
     };
 
 protected:
@@ -281,15 +280,13 @@ public:
         FLAG_N          = 1    << 31,      // Negative
 
         // FLAG_M values
-        FLAG_USER       = 0x10,      // User mode
-        FLAG_FIQ        = 0x11,      // FIQ mode
-        FLAG_IRQ        = 0x12,      // IRQ mode
-        FLAG_SVC        = 0x13,      // SVC mode
-        FLAG_ABORT      = 0x17,      // Abort mode
-        FLAG_UNDEFINED  = 0x1b,      // Undefined mode
-        FLAG_SYSTEM     = 0x1f,      // System mode
-
-        FLAG_DEFAULTS   = FLAG_SVC
+        MODE_USR        = 0x10,
+        MODE_FIQ        = 0x11,
+        MODE_IRQ        = 0x12,
+        MODE_SVC        = 0x13,
+        MODE_ABORT      = 0x17,
+        MODE_UNDEFINED  = 0x1b,
+        MODE_SYS        = 0x1f
     };
 
     // Exceptions
@@ -330,7 +327,7 @@ public:
     {
     public:
         Context() {}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): ARMv7::Context(usp, exit | thumb, multitask ? (usp ? FLAG_USER : FLAG_DEFAULTS) : FLAG_DEFAULTS, exit | thumb, entry | thumb) {}
+        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): ARMv7::Context(usp, exit | thumb, multitask ? (usp ? MODE_USR : MODE_SVC) : MODE_SVC, exit | thumb, entry | thumb) {}
     };
 
 protected:
@@ -369,14 +366,52 @@ public:
     static void fpu_restore() { ASM("vpop  {s0-s15} \n vpop  {s16-s31}"); }
 
     // ARMv7-A specifics
-    static void psr_to_r12() { ASM("mrs r12, cpsr" : : : "r12"); }
-    static void r12_to_psr() { ASM("msr cpsr, r12" : : : "cc"); }
-
     static Reg cpsr() { Reg r; ASM("mrs %0, cpsr" : "=r"(r) : : ); return r; }
     static void cpsr(Reg r) { ASM("msr cpsr, %0" : : "r"(r) : "cc"); }
 
     static Reg cpsrc() { Reg r; ASM("mrs %0, cpsr_c" : "=r"(r) : : ); return r; }
     static void cpsrc(Reg r) { ASM("msr cpsr_c, %0" : : "r"(r): ); }
+
+    static void psr_to_r12() { ASM("mrs r12, cpsr" : : : "r12"); }
+    static void r12_to_psr() { ASM("msr cpsr, r12" : : : "cc"); }
+
+    static void save_regs(bool ret = false) {
+        if(ret)
+            ASM("stmfd sp!, {r0-r3, r12, lr, pc}");
+        else
+            ASM("stmfd sp!, {r0-r3, r12, lr}");
+    }
+
+    static void restore_regs(bool ret = false) {
+        if(ret)
+            ASM("ldmfd   sp!, {r0-r3, r12, lr, pc}^");  // including PC in ldmfd cause a mode change to the mode given by PSR (the mode the CPU was before the interrupt)
+        else
+            ASM("ldmfd sp!, {r0-r3, r12, lr}");
+    }
+
+    static void mode(unsigned int m) { ASM("msr cpsr_c, %0" : : "i"(m | FLAG_F | FLAG_I) : "cc"); }
+
+    static void svc_enter(unsigned int from, bool ret = true) {
+        mode(MODE_SVC);                 // go to SVC mode to save context
+        save_regs(ret);                 // save current context (lr, sp and spsr are banked registers)
+        mode(from);                     // go back to mode "from" to recover LR and PSR
+        ASM("sub r1, lr, #4");          // r1 = return address when entering mode "from"
+        ASM("mrs r2, spsr");            // r2 = "from"_spsr (to be visible at SVC)
+        mode(MODE_SVC);                 // go to SVC mode once again
+        if(ret) {                       // if we will return, then
+            ASM("str r1, [sp, #24]");   // overwrite the saved PC with r1, which contains the recovered return address
+            ASM("push {r2}");           // push the recovered PSR
+        }
+        // upon return, r1 (LR) and r2 (PSR) are preserved and can be further used
+    }
+
+    static void svc_leave() {
+        ASM("pop {r2}");            // pop saved mode "from" PSR into SVC_spsr
+        ASM("msr spsr_cfxs, r2");
+        restore_regs(true);              // restore the context, eventually changing back to "from" mode and jumping to the saved return address
+    }
+
+    static void svc_stay() { restore_regs(false); }
 
     static Reg elr_hyp() { Reg r; ASM("mrs %0, ELR_hyp" : "=r"(r) : : ); return r; }
     static void elr_hyp(Reg r) { ASM("msr ELR_hyp, %0" : : "r"(r): ); }

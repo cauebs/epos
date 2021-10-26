@@ -23,11 +23,8 @@ private:
 public:
     LM3S811() {}
 
-    static void delay(const Microsecond & time) {
-        assert(Traits<TSC>::enabled);
-        TSC::Time_Stamp end = TSC::time_stamp() + time * (TSC::frequency() / 1000000);
-        while(end > TSC::time_stamp());
-    }
+    using Machine_Common::delay;
+    using Machine_Common::clear_bss;
 
     static void reboot() { scb()->reboot(); }
     static void poweroff() { reboot(); }

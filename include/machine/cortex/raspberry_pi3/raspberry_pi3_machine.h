@@ -21,7 +21,8 @@ protected:
 public:
     Raspberry_Pi3() {}
 
-    static void delay(const Microsecond & time);
+    using Machine_Common::delay;
+    using Machine_Common::clear_bss;
 
     static void reboot();
     static void poweroff() { reboot(); }

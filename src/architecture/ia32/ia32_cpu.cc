@@ -89,9 +89,4 @@ if(Traits<System>::multitask)
         "        iret                                                    \n");
 }
 
-unsigned int CPU::id() {
-    // Core id in IA32 is handled by the APIC
-    return smp ? APIC::id() : 0;
-}
-
 __END_SYS
