@@ -19,6 +19,7 @@ class Thread
     friend class Synchronizer_Common;   // for lock() and sleep()
     friend class Alarm;                 // for lock()
     friend class System;                // for init()
+    friend class IC;                    // for link() for priority ceiling
 
 protected:
     static const bool preemptive = Traits<Thread>::preemptive;
