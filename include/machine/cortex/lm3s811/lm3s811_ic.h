@@ -45,7 +45,7 @@ public:
     static void disable(Interrupt_Id id) { nvic()->disable(); }
 
     // Only works in handler mode (inside IC::entry())
-    static Interrupt_Id int_id() { return CPU::flags() & 0x3f; }
+    static Interrupt_Id int_id() { return CPU::psr() & 0x3f; }
     static Interrupt_Id irq2int(Interrupt_Id id) { return nvic()->irq2int(id); }
     static Interrupt_Id int2irq(Interrupt_Id irq) { return nvic()->int2irq(irq); }
 

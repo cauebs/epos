@@ -101,12 +101,12 @@ void Thread::priority(const Criterion & c)
 
     db<Thread>(TRC) << "Thread::priority(this=" << this << ",prio=" << c << ")" << endl;
 
-    _link.rank(c);
-
     if(_state != RUNNING) { // reorder the scheduling queue
         _scheduler.remove(this);
+        _link.rank(c);
         _scheduler.insert(this);
-    }
+    } else
+        _link.rank(c);
 
     if(preemptive)
         reschedule();
@@ -242,6 +242,7 @@ void Thread::exit(int status)
 
     unlock();
 }
+
 
 void Thread::sleep(Queue * q)
 {

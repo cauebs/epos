@@ -42,7 +42,7 @@ public:
 
         if(typed)
             bytes += sizeof(void *);  // add room for heap pointer
-        bytes += sizeof(int);         // add room for size
+        bytes += sizeof(long);        // add room for size
         if(bytes < sizeof(Element))
             bytes = sizeof(Element);
 
@@ -52,10 +52,10 @@ public:
             return 0;
         }
 
-        int * addr = reinterpret_cast<int *>(e->object() + e->size());
+        long * addr = reinterpret_cast<long *>(e->object() + e->size());
 
         if(typed)
-            *addr++ = reinterpret_cast<int>(this);
+            *addr++ = reinterpret_cast<long>(this);
         *addr++ = bytes;
 
         db<Heaps>(TRC) << ") => " << reinterpret_cast<void *>(addr) << endl;

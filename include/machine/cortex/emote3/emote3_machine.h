@@ -14,7 +14,7 @@
 
 __BEGIN_SYS
 
-class eMote3: public Machine_Common
+class eMote3: private Machine_Common
 {
     friend Machine;
 

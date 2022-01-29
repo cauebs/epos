@@ -34,25 +34,27 @@ struct Memory_Map: public Cortex_Memory_Map
         PRIVATE_TIMER_BASE      = 0xf8f00600,
         PRIVATE_TIMER_BASE1     = 0xf8f00620,
         GIC_DIST_BASE           = 0xf8f01000,
-        VECTOR_TABLE    = Traits<Machine>::VECTOR_TABLE,
+        VECTOR_TABLE            = Traits<Machine>::VECTOR_TABLE,
 
         // Logical Address Space -- Need to be verified
-        APP_LOW         = Traits<Machine>::APP_LOW,
-        APP_HIGH        = Traits<Machine>::APP_HIGH,
+        BOOT_STACK              = Traits<Machine>::BOOT_STACK,
 
-        APP_CODE        = Traits<Machine>::APP_CODE,
-        APP_DATA        = Traits<Machine>::APP_DATA,
+        APP_LOW                 = Traits<Machine>::APP_LOW,
+        APP_HIGH                = Traits<Machine>::APP_HIGH,
 
-        PHY_MEM         = Traits<Machine>::PHY_MEM,
-        IO              = Traits<Machine>::IO,
-        SYS             = Traits<Machine>::SYS,
-        SYS_CODE        = Traits<System>::multitask ? SYS + 0x00000000 : NOT_USED,
-        SYS_INFO        = Traits<System>::multitask ? SYS + 0x00100000 : NOT_USED,
-        SYS_PT          = Traits<System>::multitask ? SYS + 0x00101000 : NOT_USED, // 4KB = 256 + 256 + 256 entries to map from SYS to SYS_STACK
-        SYS_PD          = Traits<System>::multitask ? SYS + 0x00102000 : NOT_USED, // 16KB mem == 4k PD entries
-        SYS_DATA        = Traits<System>::multitask ? SYS + 0x00106000 : NOT_USED,
-        SYS_STACK       = Traits<System>::multitask ? SYS + 0x00200000 : NOT_USED, // 16KB mem == STACK_SIZE
-        SYS_HEAP        = Traits<System>::multitask ? SYS + 0x00300000 : NOT_USED
+        APP_CODE                = Traits<Machine>::APP_CODE,
+        APP_DATA                = Traits<Machine>::APP_DATA,
+
+        PHY_MEM                 = Traits<Machine>::PHY_MEM,
+        IO                      = Traits<Machine>::IO,
+        SYS                     = Traits<Machine>::SYS,
+        SYS_CODE                = Traits<System>::multitask ? SYS + 0x00000000 : NOT_USED,
+        SYS_INFO                = Traits<System>::multitask ? SYS + 0x00100000 : NOT_USED,
+        SYS_PT                  = Traits<System>::multitask ? SYS + 0x00101000 : NOT_USED, // 4KB = 256 + 256 + 256 entries to map from SYS to SYS_STACK
+        SYS_PD                  = Traits<System>::multitask ? SYS + 0x00102000 : NOT_USED, // 16KB mem == 4k PD entries
+        SYS_DATA                = Traits<System>::multitask ? SYS + 0x00106000 : NOT_USED,
+        SYS_STACK               = Traits<System>::multitask ? SYS + 0x00200000 : NOT_USED, // 16KB mem == STACK_SIZE
+        SYS_HEAP                = Traits<System>::multitask ? SYS + 0x00300000 : NOT_USED
     };
 };
 

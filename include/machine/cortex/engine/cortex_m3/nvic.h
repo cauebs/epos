@@ -120,7 +120,7 @@ public:
     void init() {};
 
     // Only works in handler mode (inside IC::entry())
-    Interrupt_Id int_id() { return CPU::flags() & 0x3f; }
+    Interrupt_Id int_id() { return CPU::psr() & 0x3f; }
 
 protected:
     void unpend() {

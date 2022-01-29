@@ -24,33 +24,33 @@ private:
     static const unsigned int SYS = Memory_Map::SYS;
 
 public:
-    // Page Flags
+    // Page Flags (for ARMv7-A small pages)
     class Page_Flags
     {
     public:
         // Page Table entry flags
         enum {
-            XN   = 1 << 0,  // not executable
-            PTE  = 1 << 1,  // sets entry as Small Page == Page Table Entry
+            XN   = 1 << 0,      // not executable
+            PTE  = 1 << 1,      // identifies entry as Small Page == Page Table Entry
             // Access Permission bits, assuming SCTLR.AFE = 0
             AP0  = 1 << 4,  
             AP1  = 1 << 5,
             AP2  = 1 << 9,
-            RW   = AP0,     // Read Write SYS
-            RO   = AP2,     // Read only SYS
+            RW   = AP0,         // read/write, system
+            RO   = AP2,         // read/only, system
             USR  = (AP1 | AP0),
-            // TEX[2:0], C, B, S --> set Shareability/Cacheability
-            B    = 1 << 2,  // Bufferable
-            C    = 1 << 3,  // Cacheable
+            // TEX[2:0], C, B, S --> set shareability/cacheability
+            B    = 1 << 2,      // bufferable
+            C    = 1 << 3,      // cacheable
             TEX0 = 1 << 6,
             TEX1 = 1 << 7,
             TEX2 = 1 << 8,
-            S    = 1 << 10, // Shareable
-            nG   = 1 << 11, // Not Global
+            S    = 1 << 10,     // shareable
+            nG   = 1 << 11,     // non-global (entry in the TLB)
 
-            SDEV = B,       // Shareable Device Memory, should not be used along with CT or CWT
-            CD   = TEX2,    // Cache Disable
-            CWT  = (TEX2 | TEX1 | TEX0 | C | B),  // Cacheable Write Through
+            SDEV = B,           // shareable device memory (should not be used along with CT or CWT)
+            CD   = TEX2,        // cache disable
+            CWT  = (TEX2 | TEX1 | TEX0 | C | B),  // cacheable write through
 
             // Page Table flags
             APP  = (nG | S | AP1 | AP0 | CWT | PTE),        // S, RWX  All, Normal WT
@@ -84,6 +84,38 @@ public:
         operator unsigned int() const { return _flags; }
 
         friend Debug & operator<<(Debug & db, const Page_Flags & f) { db << hex << f._flags; return db; }
+
+    private:
+        unsigned int _flags;
+    };
+
+    // Section Flags (for single-level, flat memory mapping)
+    class Section_Flags
+    {
+    public:
+        // Page Table entry flags
+        enum {
+            ID   = 0b10 << 0,   // memory section identifier
+            B    = 1 << 2,      // bufferable
+            C    = 1 << 3,      // cacheable
+            XN   = 1 << 4,      // execute never
+            AP0  = 1 << 10,
+            AP1  = 1 << 11,
+            TEX0 = 1 << 12,
+            TEX1 = 1 << 13,
+            TEX2 = 1 << 14,
+            AP2  = 1 << 15,
+            S    = 1 << 16,     // shareable
+            nG   = 1 << 17,     // non-global (entry in the TLB)
+            nS   = 1 << 19,     // non-secure
+            FLAT_MEMORY_MEM = (nS | S | AP1 | AP0 |       C | B | ID),
+            FLAT_MEMORY_DEV = (nS | S | AP1 | AP0 |       C |     ID),
+            FLAT_MEMORY_PER = (nS | S | AP1 | AP0 |  XN |     B | ID)
+        };
+
+    public:
+        Section_Flags(unsigned int f) : _flags(f) {}
+        operator unsigned int() const { return _flags; }
 
     private:
         unsigned int _flags;

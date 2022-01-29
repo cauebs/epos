@@ -94,7 +94,7 @@ UUID                    = $(shell cat /proc/sys/kernel/random/uuid | sed 's/-//g
 # Compiler prefixes
 ia32_COMP_PREFIX	:= /usr/bin/x86_64-linux-gnu-
 armv7_COMP_PREFIX	:= /usr/bin/arm-none-eabi-
-armv8_COMP_PREFIX	:= /usr/bin/arm-none-eabi-
+armv8_COMP_PREFIX	:= /usr/bin/aarch64-linux-gnu-
 rv32_COMP_PREFIX	:= /usr/local/rv32/bin/riscv32-unknown-linux-gnu-
 rv64_COMP_PREFIX	:= /usr/bin/riscv64-linux-gnu-
 COMP_PREFIX		= $($(ARCH)_COMP_PREFIX)
@@ -116,7 +116,7 @@ cortex_CC_FLAGS		:= -mcpu=cortex-a9
 cortex_AS_FLAGS		:= -mcpu=cortex-a9
 cortex_LD_FLAGS		:=
 cortex_EMULATOR		= qemu-system-arm -machine realview-pbx-a9 -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot -kernel 
-cortex_DEBUGGER		:= arm-none-eabi-gdb
+cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
 cortex_CODE_NAME	:= .init
@@ -128,7 +128,7 @@ ifeq ($(MMOD),zynq)
 cortex_CC_FLAGS		:= -mcpu=cortex-a9
 cortex_AS_FLAGS		:= -mcpu=cortex-a9
 cortex_EMULATOR		= qemu-system-arm -machine xilinx-zynq-a9  -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot -kernel 
-cortex_DEBUGGER		:= arm-none-eabi-gdb
+cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
 cortex_CODE_NAME	:= .init
@@ -137,10 +137,15 @@ cortex_IMG_SUFFIX	:= .bin
 endif
 
 ifeq ($(MMOD),raspberry_pi3)
+ifeq ($(ARCH),armv7)
 cortex_CC_FLAGS		:= -mcpu=cortex-a53 -mfloat-abi=hard -mfpu=vfp
+cortex_EMULATOR		= qemu-system-aarch64 -M raspi2 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot -kernel 
+else
+cortex_CC_FLAGS		:= -mcpu=cortex-a53 -mabi=lp64 -Wno-attributes
+cortex_EMULATOR		= qemu-system-aarch64 -M raspi3 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot -kernel 
+endif
 cortex_AS_FLAGS		:= -mcpu=cortex-a53
 cortex_LD_FLAGS		:=
-cortex_EMULATOR		= qemu-system-aarch64 -M raspi2 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot -device loader,file=$(APPLICATION).img,addr=$(IMAGE_ADDR),force-raw=on -kernel 
 cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --nmagic
@@ -255,7 +260,7 @@ TLDFLAGS	:= -m32
 ACC		= $(BIN)/eposcc $(MACH_CC_FLAGS)  -c -ansi -O
 ACCFLAGS	= $(MACH_CXX_FLAGS)
 ALD		= $(BIN)/eposcc --$(SMOD) --no-warn-mismatch
-ALDFLAGS	:= --gc-sections --undefined=__boot_time_system_info $(MACH_MAGIC)
+ALDFLAGS	:= --gc-sections $(MACH_MAGIC)
 
 # Tools and flags to compile the system
 AR		= $(COMP_PREFIX)ar

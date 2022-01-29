@@ -11,6 +11,8 @@ struct Memory_Map: public Cortex_Memory_Map
 {
     enum {
         // Base addresses for memory-mapped control and I/O devices
+        SYS_FLAGS               = 0x10000030, // OS GP flags (used by QEMU to indicate the starting address of non-BSP cores)
+        SYS_NVFLAGS             = 0x10000038, // OS GP flags (not cleared on reset)
         I2C_BASE                = 0x10002000, // Versatile I2C
         AAC_BASE                = 0x10004000, // PrimeCell PL041 Advanced Audio CODEC
         MMCI_BASE               = 0x10005000, // PrimeCell PL181 MultiMedia Card Interface
@@ -36,25 +38,28 @@ struct Memory_Map: public Cortex_Memory_Map
         TSC_BASE                = GLOBAL_TIMER_BASE,
         PRIVATE_TIMER_BASE      = 0x1f000600,
         GIC_DIST_BASE           = 0x1f001000,
-        VECTOR_TABLE    = Traits<Machine>::VECTOR_TABLE,
 
-        // Logical Address Space -- Need to be verified
-        APP_LOW         = Traits<Machine>::APP_LOW,
-        APP_HIGH        = Traits<Machine>::APP_HIGH,
+        VECTOR_TABLE            = RAM_BASE, // 8 x 4b instructions + 8 x 4b pointers
+        BOOT_STACK              = VECTOR_TABLE + 4 * 1024, // will be used as the stack's base, not the stack pointer
+        FLAT_PAGE_TABLE         = Traits<System>::multitask ? NOT_USED : (RAM_TOP - 4096 * 4) & ~(0x3fff), // used only with No_MMU in LIBRARY mode; 16K-aligned TTBR; RAM_TOP - 16KB for 4K entries of 4B each, pointing to 1 MB regions, thus mapping 4 GB
 
-        APP_CODE        = Traits<Machine>::APP_CODE,
-        APP_DATA        = Traits<Machine>::APP_DATA,
+        // Logical Address Space
+        APP_LOW                 = Traits<Machine>::RESET,
+        APP_HIGH                = BOOT_STACK,
 
-        PHY_MEM         = Traits<Machine>::PHY_MEM,
-        IO              = Traits<Machine>::IO,
-        SYS             = Traits<Machine>::SYS,
-        SYS_CODE        = Traits<System>::multitask ? SYS + 0x00000000 : NOT_USED,
-        SYS_INFO        = Traits<System>::multitask ? SYS + 0x00100000 : NOT_USED,
-        SYS_PT          = Traits<System>::multitask ? SYS + 0x00101000 : NOT_USED, // 4KB = 256 + 256 + 256 entries to map from SYS to SYS_STACK
-        SYS_PD          = Traits<System>::multitask ? SYS + 0x00102000 : NOT_USED, // 16KB mem == 4k PD entries
-        SYS_DATA        = Traits<System>::multitask ? SYS + 0x00106000 : NOT_USED,
-        SYS_STACK       = Traits<System>::multitask ? SYS + 0x00200000 : NOT_USED, // 16KB mem == STACK_SIZE
-        SYS_HEAP        = Traits<System>::multitask ? SYS + 0x00300000 : NOT_USED
+        APP_CODE                = APP_LOW,
+        APP_DATA                = APP_LOW,
+
+        PHY_MEM                 = Traits<Machine>::PHY_MEM,
+        IO                      = Traits<Machine>::IO,
+        SYS                     = Traits<Machine>::SYS,
+        SYS_CODE                = Traits<System>::multitask ? SYS + 0x00000000 : NOT_USED,
+        SYS_INFO                = Traits<System>::multitask ? SYS + 0x00100000 : NOT_USED,
+        SYS_PT                  = Traits<System>::multitask ? SYS + 0x00101000 : NOT_USED, // 4KB = 256 + 256 + 256 entries to map from SYS to SYS_STACK
+        SYS_PD                  = Traits<System>::multitask ? SYS + 0x00102000 : NOT_USED, // 16KB mem == 4k PD entries
+        SYS_DATA                = Traits<System>::multitask ? SYS + 0x00106000 : NOT_USED,
+        SYS_STACK               = Traits<System>::multitask ? SYS + 0x00200000 : NOT_USED, // 16KB mem == STACK_SIZE
+        SYS_HEAP                = Traits<System>::multitask ? SYS + 0x00300000 : NOT_USED
     };
 };
 

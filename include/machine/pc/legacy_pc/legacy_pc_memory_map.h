@@ -17,12 +17,12 @@ struct Memory_Map
         RAM_TOP         = Traits<Machine>::RAM_TOP,
         MIO_BASE        = Traits<Machine>::MIO_BASE,
         MIO_TOP         = Traits<Machine>::MIO_TOP,
-        BOOT_STACK      = Traits<Machine>::BOOT_STACK,
 
         // Physical Memory at Boot
         BOOT            = Traits<Machine>::BOOT,
         IMAGE           = Traits<Machine>::IMAGE,
         SETUP           = Traits<Machine>::SETUP,
+    	BOOT_STACK      = Traits<Machine>::BOOT_STACK,
 
         // Logical Address Space
         APP_LOW         = Traits<Machine>::APP_LOW,

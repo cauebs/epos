@@ -145,31 +145,68 @@ class BCM_Mailbox: public BCM_IC_Common
 public:
     // Registers offsets from BASE (i.e. this)
     enum {
-        GPU_INT_ROUTING         = 0x00c,
-        PMU_INT_ROUTING_SET     = 0x010,
-        PMU_INT_ROUTING_CLR     = 0x014,
-        LOCAL_INT_ROUTING       = 0x024, // Timer interrupt
-        LOCAL_TIMER_CS          = 0x034, // Control/Status
-        LOCAL_TIMER_WFLAGS      = 0x038, //
+        GPU_INT_ROUTING         = 0x0c,
+        PMU_INT_ROUTING_SET     = 0x10,
+        PMU_INT_ROUTING_CLR     = 0x14,
+        LOCAL_INT_ROUTING       = 0x24, // Timer interrupt
+        LOCAL_TIMER_CS          = 0x34, // Control/Status
+        LOCAL_TIMER_WFLAGS      = 0x38, //
 
-        CORE0_TIMER_INT_CTRL    = 0x040,
-        CORE1_TIMER_INT_CTRL    = 0x044,
-        CORE2_TIMER_INT_CTRL    = 0x048,
-        CORE3_TIMER_INT_CTRL    = 0x04c,
+        CORE0_TIMER_INT_CTRL    = 0x40,
+        CORE1_TIMER_INT_CTRL    = 0x44,
+        CORE2_TIMER_INT_CTRL    = 0x48,
+        CORE3_TIMER_INT_CTRL    = 0x4c,
 
-        CORE0_MBOX_INT_CTRL     = 0x050,
-        CORE1_MBOX_INT_CTRL     = 0x054,
-        CORE2_MBOX_INT_CTRL     = 0x058,
-        CORE3_MBOX_INT_CTRL     = 0x05c,
+        CORE0_MBOX_INT_CTRL     = 0x50,
+        CORE1_MBOX_INT_CTRL     = 0x54,
+        CORE2_MBOX_INT_CTRL     = 0x58,
+        CORE3_MBOX_INT_CTRL     = 0x5c,
 
-        CORE0_IRQ_SRC           = 0x060,
-        CORE1_IRQ_SRC           = 0x064,
-        CORE2_IRQ_SRC           = 0x068,
-        CORE3_IRQ_SRC           = 0x06c,
+        CORE0_IRQ_SRC           = 0x60,
+        CORE1_IRQ_SRC           = 0x64,
+        CORE2_IRQ_SRC           = 0x68,
+        CORE3_IRQ_SRC           = 0x6c,
 
-        MBOX_WS                 = 0x080, // Each CPU has 4 Mailboxes WRITE-SET   registers of 4 Bytes
-        MBOX_WC                 = 0x0c0  // Each CPU has 4 Mailboxes WRITE-CLEAR registers of 4 Bytes
-    };
+        CORE0_FIQ_SRC           = 0x70,
+        CORE1_FIQ_SRC           = 0x74,
+        CORE2_FIQ_SRC           = 0x78,
+        CORE3_FIQ_SRC           = 0x7c,
+
+        MBOX_WS                 = 0x80, // Each CPU has 4 Mailboxes WRITE-SET   registers of 4 Bytes
+        CORE0_MBOX0_SET         = 0x80,
+        CORE0_MBOX1_SET         = 0x84,
+        CORE0_MBOX2_SET         = 0x88,
+        CORE0_MBOX3_SET         = 0x8c, // starting address at boot
+        CORE1_MBOX0_SET         = 0x90,
+        CORE1_MBOX1_SET         = 0x94,
+        CORE1_MBOX2_SET         = 0x98,
+        CORE1_MBOX3_SET         = 0x9c, // starting address at boot
+        CORE2_MBOX0_SET         = 0xa0,
+        CORE2_MBOX1_SET         = 0xa4,
+        CORE2_MBOX2_SET         = 0xa8,
+        CORE2_MBOX3_SET         = 0xac, // starting address at boot
+        CORE3_MBOX0_SET         = 0xb0,
+        CORE3_MBOX1_SET         = 0xb4,
+        CORE3_MBOX2_SET         = 0xb8,
+        CORE3_MBOX3_SET         = 0xbc, // starting address at boot
+
+        MBOX_WC                 = 0xc0, // Each CPU has 4 Mailboxes WRITE-CLEAR registers of 4 Bytes
+        CORE0_MBOX1_RDCLR       = 0xc4,
+        CORE0_MBOX2_RDCLR       = 0xc8,
+        CORE0_MBOX3_RDCLR       = 0xcc,
+        CORE1_MBOX0_RDCLR       = 0xd0,
+        CORE1_MBOX1_RDCLR       = 0xd4,
+        CORE1_MBOX2_RDCLR       = 0xd8,
+        CORE1_MBOX3_RDCLR       = 0xdc,
+        CORE2_MBOX0_RDCLR       = 0xe0,
+        CORE2_MBOX1_RDCLR       = 0xe4,
+        CORE2_MBOX2_RDCLR       = 0xe8,
+        CORE2_MBOX3_RDCLR       = 0xec,
+        CORE3_MBOX0_RDCLR       = 0xf0,
+        CORE3_MBOX1_RDCLR       = 0xf4,
+        CORE3_MBOX2_RDCLR       = 0xf8,
+        CORE3_MBOX3_RDCLR       = 0xfc
+};
 
     // COREx_IRQ_SRC useful bits
     enum {
@@ -213,9 +250,9 @@ public:
         Reg32 src = mailbox(CORE0_IRQ_SRC + 4 * cpu);
         // Does not matter the CPU from where the IPI came from
         // 0x10 = CPU 0 | 0x20 = CPU 1 | 0x40 = CPU 2 | 0x80 = CPU 3
-        if (src & 0x10 || src & 0x20 || src & 0x40 || src & 0x80)
+        if(src & 0x10 || src & 0x20 || src & 0x40 || src & 0x80)
             return CORE0_MAILBOX0_IRQ;
-        else if (src & 0x800)
+        else if(src & 0x800)
             return CORE0_MAILBOX_TIMER_IRQ;
         else
             return LAST_INT;
@@ -232,10 +269,16 @@ public:
         mailbox(MBOX_WC + cpu_base + 4)  = 1 << 31; // ACK From CPU1
         mailbox(MBOX_WC + cpu_base + 8)  = 1 << 31; // ACK From CPU2
         mailbox(MBOX_WC + cpu_base + 12) = 1 << 31; // ACK From CPU3
-        ASM("dsb \t\n isb");
+        CPU::dsb();
+        CPU::isb();
     }
 
-    void init(void) {
+    void start(unsigned int cpu, Log_Addr addr) {
+        mailbox(CORE0_MBOX3_SET + 16 * cpu) = addr;
+        CPU::sev();
+    }
+
+    void init() {
         // Enable All IPIs
         mailbox(CORE0_MBOX_INT_CTRL) = 0xf;
         mailbox(CORE1_MBOX_INT_CTRL) = 0xf;

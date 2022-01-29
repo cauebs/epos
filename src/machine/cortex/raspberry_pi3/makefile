@@ -1,4 +1,4 @@
-# EPOS Cortex Machine Makefile
+# EPOS Raspberry Pi3 (ARM Cortex-A53) Machine Makefile
 
 include ../../../../makedefs
 

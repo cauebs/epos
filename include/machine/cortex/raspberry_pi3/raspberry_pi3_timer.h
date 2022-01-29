@@ -23,7 +23,7 @@ private:
     static const unsigned int UNIT = 0;
     static const unsigned int FREQUENCY = Traits<Timer>::FREQUENCY;
 
-    typedef IF<Traits<Machine>::SIMULATED == 0, BCM_Timer, BCM_Mailbox_Timer>::Result Timer_Base;
+    typedef IF<Traits<Machine>::emulated == 0, BCM_Timer, BCM_Mailbox_Timer>::Result Timer_Base;
 
     typedef IC_Common::Interrupt_Id Interrupt_Id;
 
@@ -46,7 +46,7 @@ public:
     static Hertz clock() { return timer()->clock(); }
 
 protected:
-    static void eoi(Interrupt_Id id) { Traits<Machine>::SIMULATED ? timer()->eoi() : timer()->config(UNIT, _count); }
+    static void eoi(Interrupt_Id id) { Traits<Machine>::emulated ? timer()->eoi() : timer()->config(UNIT, _count); }
 
 private:
     static void init() {

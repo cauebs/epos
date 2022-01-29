@@ -14,7 +14,7 @@
 
 __BEGIN_SYS
 
-class Machine: public Machine_Common
+class Machine: private Machine_Common
 {
     friend class Init_System;
     friend class Init_Begin;

@@ -23,26 +23,19 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x00000000;
     static const unsigned int RAM_TOP           = 0x07ffffff;   // 128 MB
-    static const unsigned int VECTOR_TABLE      = 0x00010000;   // Defined by uboot@QEMU
-    static const unsigned int PAGE_TABLES       = 0x07f00000;   // MEM_TOP - 16 MB
     static const unsigned int MIO_BASE          = 0x10000000;
     static const unsigned int MIO_TOP           = 0x1fffffff;
+    static const unsigned int RESET             = 0x00010000; // QEMU requires the vector table (i.e. SETUP's entry point) to be here
 
     // Boot Image
     static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
     static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
-    static const unsigned int BOOT_STACK        = 0x07effffc;   // MEM_TOP - sizeof(int) - 1M for boot stacks
 
     // Logical Memory Map
     static const unsigned int BOOT              = NOT_USED;
     static const unsigned int IMAGE             = NOT_USED;
     static const unsigned int SETUP             = NOT_USED;
     static const unsigned int INIT              = NOT_USED;
-
-    static const unsigned int APP_LOW           = 0x00000000;
-    static const unsigned int APP_CODE          = 0x00010000;
-    static const unsigned int APP_DATA          = 0x00010000;
-    static const unsigned int APP_HIGH          = 0x07ffffff;
 
     static const unsigned int PHY_MEM           = 0x80000000; // 2 GB
     static const unsigned int IO                = 0xf0000000;   // 4 GB - 256 MB

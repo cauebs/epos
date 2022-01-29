@@ -4,18 +4,20 @@
 #include <machine/ic.h>
 #include <system/memory_map.h>
 
+#ifdef __cortex_a__
+
 __BEGIN_SYS
 
-extern "C" { void _int_entry();
-             void _undefined_instruction();
-             void _software_interrupt();
-             void _prefetch_abort();
-             void _data_abort();
-             void _reserved();
-             void _fiq(); 
+extern "C" {
+    void _undefined_instruction();
+    void _software_interrupt();
+    void _prefetch_abort();
+    void _data_abort();
+    void _reserved();
+    void _int_entry();
+    void _fiq();
 }
 
-// Class methods
 void IC::init()
 {
     db<Init, IC>(TRC) << "IC::init()" << endl;
@@ -25,14 +27,15 @@ void IC::init()
 
     disable(); // will be enabled on demand as handlers are registered
 
-    CPU::FSR * vt = reinterpret_cast<CPU::FSR *>(Memory_Map::VECTOR_TABLE + 32);
-    // vt[0] = _reset is defined by SETUP
+    CPU::FSR ** vt = reinterpret_cast<CPU::FSR **>(Memory_Map::VECTOR_TABLE + 32); // add 32 bytes to skip the "ldr" instructions and get to the function pointers
+    vt[0] = _reserved; // _reset is only defined for SETUP
     vt[1] = _undefined_instruction;
     vt[2] = _software_interrupt;
     vt[3] = _prefetch_abort;
     vt[4] = _data_abort;
-    vt[5] = _int_entry;
-    vt[6] = _fiq;
+    vt[5] = _reserved;
+    vt[6] = _int_entry;
+    vt[7] = _fiq;
 
     // Set all interrupt handlers to int_not()
     for(Interrupt_Id i = 0; i < INTS; i++)
@@ -40,3 +43,5 @@ void IC::init()
 }
 
 __END_SYS
+
+#endif

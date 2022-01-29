@@ -72,19 +72,19 @@ public:
     static const unsigned int PD_ENTRIES = 1 << DIRECTORY_BITS;
 
 public:
-    static unsigned int pages(unsigned int bytes) { return (bytes + sizeof(Page) - 1) / sizeof(Page); }
-    static unsigned int page_tables(unsigned int pages) { return sizeof(Page) > sizeof(int) ? (pages + PT_ENTRIES - 1) / PT_ENTRIES : 0; }
+    constexpr static unsigned int pages(unsigned int bytes) { return (bytes + sizeof(Page) - 1) / sizeof(Page); }
+    constexpr static unsigned int page_tables(unsigned int pages) { return sizeof(Page) > sizeof(int) ? (pages + PT_ENTRIES - 1) / PT_ENTRIES : 0; }
 
-    static unsigned int offset(const Log_Addr & addr) { return addr & (sizeof(Page) - 1); }
-    static unsigned int indexes(const Log_Addr & addr) { return addr & ~(sizeof(Page) - 1); }
+    constexpr static unsigned int offset(const Log_Addr & addr) { return addr & (sizeof(Page) - 1); }
+    constexpr static unsigned int indexes(const Log_Addr & addr) { return addr & ~(sizeof(Page) - 1); }
 
-    static unsigned int page(const Log_Addr & addr) { return (addr >> PAGE_SHIFT) & (PT_ENTRIES - 1); }
-    static unsigned int directory(const Log_Addr & addr) { return addr >> DIRECTORY_SHIFT; }
+    constexpr static unsigned int page(const Log_Addr & addr) { return (addr >> PAGE_SHIFT) & (PT_ENTRIES - 1); }
+    constexpr static unsigned int directory(const Log_Addr & addr) { return addr >> DIRECTORY_SHIFT; }
 
-    static Log_Addr align_page(const Log_Addr & addr) { return (addr + sizeof(Page) - 1) & ~(sizeof(Page) - 1); }
-    static Log_Addr align_directory(const Log_Addr & addr) { return (addr + PT_ENTRIES * sizeof(Page) - 1) &  ~(PT_ENTRIES * sizeof(Page) - 1); }
+    constexpr static Log_Addr align_page(const Log_Addr & addr) { return (addr + sizeof(Page) - 1) & ~(sizeof(Page) - 1); }
+    constexpr static Log_Addr align_directory(const Log_Addr & addr) { return (addr + PT_ENTRIES * sizeof(Page) - 1) &  ~(PT_ENTRIES * sizeof(Page) - 1); }
 
-    static Log_Addr directory_bits(const Log_Addr & addr) { return (addr & ~((1 << DIRECTORY_BITS) - 1)); }
+    constexpr static Log_Addr directory_bits(const Log_Addr & addr) { return (addr & ~((1 << DIRECTORY_BITS) - 1)); }
 };
 
 class No_MMU: public MMU_Common<0, 0, 0>
@@ -190,7 +190,7 @@ public:
         if(bytes) {
             List::Element * e = _free.search_decrementing(bytes);
             if(e)
-                phy = reinterpret_cast<unsigned int>(e->object()) + e->size();
+                phy = reinterpret_cast<unsigned long>(e->object()) + e->size();
             else
                 db<MMU>(ERR) << "MMU::alloc() failed!" << endl;
         }

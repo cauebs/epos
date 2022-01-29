@@ -92,7 +92,7 @@ private:
     static void int_not(Interrupt_Id i);
     static void hard_fault(Interrupt_Id i);
 
-    // Physical handler
+    // Physical handlers
     static void entry() __attribute__ ((naked));
     static void prefetch_abort() __attribute__ ((naked));
     static void undefined_instruction() __attribute__ ((naked));

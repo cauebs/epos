@@ -11,7 +11,7 @@
 
 __BEGIN_SYS
 
-class Zynq: public Machine_Common
+class Zynq: private Machine_Common
 {
     friend Machine; // for pre_init() and init()
 
@@ -194,7 +194,7 @@ protected:
         return (n & 0x3) + 1;
     }
 
-    static void smp_barrier_init(unsigned int n_cpus) {}
+    static void smp_barrier_init(unsigned int n_cpus) { _cores = n_cpus; }
 
     static void enable_uart(unsigned int unit) {}
 

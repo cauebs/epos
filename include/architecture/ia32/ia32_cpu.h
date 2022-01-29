@@ -467,6 +467,9 @@ public:
     static Reg32 eax() { Reg32 r; ASM("movl %%eax,%0"  : "=r"(r) :); return r; }
     static void eax(Reg32 r) {    ASM("movl %0, %%eax" : : "r"(r)); }
 
+    static Reg32 ecx() { Reg32 r; ASM("movl %%ecx,%0"  : "=r"(r) :); return r; }
+    static void eac(Reg32 r) {    ASM("movl %0, %%ecx" : : "r"(r)); }
+
     static Log_Addr eip() {
         Log_Addr value;
         ASM("       push    %%eax                           \n"

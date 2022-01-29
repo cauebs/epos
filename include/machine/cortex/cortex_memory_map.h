@@ -20,7 +20,6 @@ struct Cortex_Memory_Map
 
         // Physical Memory at Boot
         BOOT            = Traits<Machine>::BOOT,
-        BOOT_STACK      = Traits<Machine>::BOOT_STACK,
         SETUP           = Traits<Machine>::SETUP,
         IMAGE           = Traits<Machine>::IMAGE,
 

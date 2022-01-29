@@ -49,6 +49,9 @@ endif
 flash1: all1
 		(cd img && $(MAKE) flash)
 
+bin: FORCE
+		$(MAKE) APPLICATION=hello etc tools
+
 TESTS		:= $(shell find $(TST) -maxdepth 1 -type d -and -not -name tests -printf "%f\n")
 TESTS_TO_RUN	:= $(APPLICATIONS) $(TESTS)
 TESTS_COMPILED 	:= $(subst .img,,$(shell find $(IMG) -name \*.img -printf "%f\n"))
@@ -70,7 +73,7 @@ gittest: buildtest runtest
 linktest: FORCE
 		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 
-cleantest: FORCE
+cleantest: clean
 		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 		$(foreach tst,$(TESTS),cd $(TST)/${tst} && $(MAKE) APPLICATION=$(tst) clean;)
 		find $(APP) -maxdepth 1 -type l -exec $(CLEAN) {} \;

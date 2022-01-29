@@ -10,7 +10,7 @@
 
 __BEGIN_SYS
 
-class Raspberry_Pi3: public Machine_Common
+class Raspberry_Pi3: private Machine_Common
 {
     friend Machine; // for pre_init() and init()
 

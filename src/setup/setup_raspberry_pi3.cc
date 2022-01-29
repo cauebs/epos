@@ -7,15 +7,15 @@
 
 extern "C" {
     void _start();
-    void _bss_clear();
 
     // SETUP entry point is the Vector Table and resides in the .init section (not in .text), so it will be linked first and will be the first function after the ELF header in the image.
     void _entry() __attribute__ ((used, naked, section(".init")));
     void _reset() __attribute__ ((naked)); // so it can be safely reached from the vector table
     void _setup(); // just to create a Setup object
+    void vector_table();
 
-    // LD eliminates this variable while performing garbage collection, so --undefined=__boot_time_system_info must be present while linking
-    char __boot_time_system_info[sizeof(EPOS::S::System_Info)] = "System_Info placeholder. Actual System_Info will be added by mkbi!";
+    // LD eliminates this variable while performing garbage collection, that's why the used attribute.
+    char __boot_time_system_info[sizeof(EPOS::S::System_Info)] __attribute__ ((used)) = "<System_Info placeholder>"; // actual System_Info will be added by mkbi!
 }
 
 __BEGIN_SYS
@@ -28,10 +28,11 @@ private:
     // Physical memory map
     static const unsigned int RAM_BASE          = Memory_Map::RAM_BASE;
     static const unsigned int RAM_TOP           = Memory_Map::RAM_TOP;
+    static const unsigned int MIO_BASE          = Memory_Map::MIO_BASE;
+    static const unsigned int MIO_TOP           = Memory_Map::MIO_TOP;
     static const unsigned int IMAGE             = Memory_Map::IMAGE;
     static const unsigned int SETUP             = Memory_Map::SETUP;
-    static const unsigned int PAGE_TABLES       = (Memory_Map::RAM_TOP - 4 * 4096) & ~(0x3FFF); // 16KB for 4K entries of 4B each. Moreover, we need 16K aligned TTBR entry
-    static const unsigned int VECTOR_TABLE      = Traits<Build>::EXPECTED_SIMULATION_TIME ? 0x00010000 : 0x00008000;   // defined by uboot@QEMU
+    static const unsigned int FLAT_PAGE_TABLE   = Memory_Map::FLAT_PAGE_TABLE;
 
     // Logical memory map
     static const unsigned int APP_LOW           = Memory_Map::APP_LOW;
@@ -57,19 +58,6 @@ private:
     typedef MMU::Page_Directory Page_Directory;
     typedef MMU::PT_Entry PT_Entry;
     typedef MMU::PD_Entry PD_Entry;
-
-    // System_Info Imports
-    typedef System_Info::Boot_Map BM;
-    typedef System_Info::Physical_Memory_Map PMM;
-    typedef System_Info::Load_Map LM;
-
-private:
-    // TTBR0 Page Table Entry Descriptor for Sections configuration --> One level translation for Flat Mapping
-    enum {
-        TTB_MEMORY_DESCRIPTOR           = 0x90c0e,
-        TTB_DEVICE_DESCRIPTOR           = 0x90c0a,
-        TTB_PERIPHERAL_DESCRIPTOR       = 0x90c16
-    };
 
 public:
     Setup();
@@ -118,6 +106,10 @@ Setup::Setup()
     if(si->bm.n_cpus > Traits<Machine>::CPUS)
         si->bm.n_cpus = Traits<Machine>::CPUS;
 
+    // Reserve memory for the FLAT_PAGE_TABLE if needed by hidding the respective memory from the system
+    if(FLAT_PAGE_TABLE != Memory_Map::NOT_USED)
+        si->bm.mem_top = FLAT_PAGE_TABLE - 1;
+
     if(CPU::id() == 0) { // bootstrap CPU (BSP)
 
         if(Traits<System>::multitask) {
@@ -127,6 +119,12 @@ Setup::Setup()
             build_pmm();
 
             // Print basic facts about this EPOS instance
+            if(!si->lm.has_app) {
+                db<Setup>(ERR) << "No APPLICATION in boot image, you don't need EPOS!" << endl;
+                panic();
+            }
+            if(!si->lm.has_sys)
+                db<Setup>(INF) << "No SYSTEM in boot image, assuming EPOS is a library!" << endl;
             say_hi();
 
             // Configure the memory model defined above
@@ -141,6 +139,9 @@ Setup::Setup()
             load_parts();
 
         } else { // library mode
+
+            // Print basic facts about this EPOS instance
+            say_hi();
 
             // Configure a flat memory model for the single task in the system
             setup_flat_paging();
@@ -167,12 +168,13 @@ Setup::Setup()
 
 void Setup::setup_flat_paging()
 {
-    volatile CPU::Reg * pt = reinterpret_cast<volatile CPU::Reg *>(PAGE_TABLES);
-    for(int i = 0; i <= 1006; i++)
-        pt[i] = TTB_MEMORY_DESCRIPTOR | (i << 20);
-    pt[1007] = TTB_DEVICE_DESCRIPTOR | (1007 << 20);
-    for(int i = 1008; i <= 4095; i++)
-        pt[i] = TTB_PERIPHERAL_DESCRIPTOR | (i << 20);
+    db<Setup>(TRC) << "Setup::setup_flat_paging()" << endl;
+    CPU::Reg * pt = reinterpret_cast<CPU::Reg *>(FLAT_PAGE_TABLE);
+    for(CPU::Reg i = MMU_Common<12,0,20>::directory(RAM_BASE); i < MMU_Common<12,0,20>::directory(RAM_BASE) + MMU_Common<12,0,20>::pages(RAM_TOP - RAM_BASE); i++)
+        pt[i] = (i << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_MEM;
+    pt[MMU_Common<12,0,20>::directory(MIO_BASE)] = (MMU_Common<12,0,20>::directory(MIO_BASE) << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_DEV;
+    for(CPU::Reg i = MMU_Common<12,0,20>::directory(MIO_BASE) + 1; i < MMU_Common<12,0,20>::directory(MIO_BASE) + MMU_Common<12,0,20>::pages(MIO_TOP - MIO_BASE); i++)
+        pt[i] = (i << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_PER;
 }
 
 void Setup::build_lm()
@@ -264,25 +266,14 @@ void Setup::build_lm()
         si->lm.sys_segments = sys_elf->segments();
         si->lm.sys_code = sys_elf->segment_address(0);
         si->lm.sys_code_size = sys_elf->segment_size(0);
-        if (sys_elf->segments() > 1) {
-            if(sys_elf->segment_address(1) < si->lm.sys_code)
-                si->lm.sys_code = sys_elf->segment_address(1);
-            si->lm.sys_code_size += sys_elf->segment_size(1);
-        }
-
-        db<Setup>(INF) << "SYS Segments: " << sys_elf->segments()<< endl;
-
-        if(sys_elf->segments() > 2) {
-            for(int i = 2; i < sys_elf->segments(); i++) {
+        if(sys_elf->segments() > 1) {
+            for(int i = 1; i < sys_elf->segments(); i++) {
                 if(sys_elf->segment_type(i) != PT_LOAD)
                     continue;
                 if(sys_elf->segment_address(i) < si->lm.sys_data)
                     si->lm.sys_data = sys_elf->segment_address(i);
                 si->lm.sys_data_size += sys_elf->segment_size(i);
             }
-            db<Setup>(INF) << "SYS Segments[0]: " << reinterpret_cast<void *>(sys_elf->segment_address(0)) << ", size="<< sys_elf->segment_size(0) << endl;
-            db<Setup>(INF) << "SYS Segments[1]: " << reinterpret_cast<void *>(sys_elf->segment_address(1)) << ", size="<< sys_elf->segment_size(1) << endl;
-            db<Setup>(INF) << "SYS Segments[2]: " << reinterpret_cast<void *>(sys_elf->segment_address(2)) << ", size="<< sys_elf->segment_size(2) << endl;
         }
 
         // CODE and DATA Segments are concatenated, only code seg is available...
@@ -450,10 +441,11 @@ void Setup::say_hi()
 {
     db<Setup>(TRC) << "Setup::say_hi()" << endl;
     db<Setup>(INF) << "System_Info=" << *si << endl;
+    db<Setup>(INF) << "Boot_Stack=" << reinterpret_cast<void *>(Memory_Map::BOOT_STACK) << " (sp=" << CPU::sp() << ")" << endl;
 
     kout << endl;
 
-    if(!si->lm.has_app) {
+    if(Traits<System>::multitask && !si->lm.has_app) {
         db<Setup>(ERR) << "No APPLICATION in boot image, you don't need EPOS!" << endl;
         panic();
     }
@@ -506,12 +498,12 @@ void Setup::setup_pt(PT_Entry * pts, Phy_Addr base, unsigned int size, unsigned 
 void Setup::setup_sys_pt()
 {
     db<Setup>(TRC) << "Setup::setup_sys_pt(pmm="
-                   << "{si="      << (void *)si->pmm.sys_info
-                   << ",pt="      << (void *)si->pmm.sys_pt
-                   << ",pd="      << (void *)si->pmm.sys_pd
-                   << ",sysc={b=" << (void *)si->pmm.sys_code << ",s=" << MMU::pages(si->lm.sys_code_size) << "}"
-                   << ",sysd={b=" << (void *)si->pmm.sys_data << ",s=" << MMU::pages(si->lm.sys_data_size) << "}"
-                   << ",syss={b=" << (void *)si->pmm.sys_stack << ",s=" << MMU::pages(si->lm.sys_stack_size) << "}"
+                   << "{si="      << reinterpret_cast<void *>(si->pmm.sys_info)
+                   << ",pt="      << reinterpret_cast<void *>(si->pmm.sys_pt)
+                   << ",pd="      << reinterpret_cast<void *>(si->pmm.sys_pd)
+                   << ",sysc={b=" << reinterpret_cast<void *>(si->pmm.sys_code) << ",s=" << MMU::pages(si->lm.sys_code_size) << "}"
+                   << ",sysd={b=" << reinterpret_cast<void *>(si->pmm.sys_data) << ",s=" << MMU::pages(si->lm.sys_data_size) << "}"
+                   << ",syss={b=" << reinterpret_cast<void *>(si->pmm.sys_stack) << ",s=" << MMU::pages(si->lm.sys_stack_size) << "}"
                    << "})" << endl;
 
     // Get the physical address for the SYSTEM Page Table
@@ -551,9 +543,9 @@ void Setup::setup_sys_pt()
 
 void Setup::setup_app_pt()
 {
-    db<Setup>(TRC) << "Setup::setup_app_pt(appc={b=" << (void *)si->pmm.app_code << ",s=" << MMU::pages(si->lm.app_code_size) << "}"
-                   << ",appd={b=" << (void *)si->pmm.app_data << ",s=" << MMU::pages(si->lm.app_data_size) << "}"
-                   << ",appe={b=" << (void *)si->pmm.app_extra << ",s=" << MMU::pages(si->lm.app_extra_size) << "}"
+    db<Setup>(TRC) << "Setup::setup_app_pt(appc={b=" << reinterpret_cast<void *>(si->pmm.app_code) << ",s=" << MMU::pages(si->lm.app_code_size) << "}"
+                   << ",appd={b=" << reinterpret_cast<void *>(si->pmm.app_data) << ",s=" << MMU::pages(si->lm.app_data_size) << "}"
+                   << ",appe={b=" << reinterpret_cast<void *>(si->pmm.app_extra) << ",s=" << MMU::pages(si->lm.app_extra_size) << "}"
                    << "})" << endl;
 
     // Get the physical address for the first APPLICATION Page Tables
@@ -577,26 +569,26 @@ void Setup::setup_app_pt()
 void Setup::setup_sys_pd()
 {
     db<Setup>(TRC) << "setup_sys_pd(bm="
-                   << "{memb="  << (void *)si->bm.mem_base
-                   << ",memt="  << (void *)si->bm.mem_top
-                   << ",miob="  << (void *)si->bm.mio_base
-                   << ",miot="  << (void *)si->bm.mio_top
-                   << "{si="    << (void *)si->pmm.sys_info
-                   << ",spt="   << (void *)si->pmm.sys_pt
-                   << ",spd="   << (void *)si->pmm.sys_pd
-                   << ",mem="   << (void *)si->pmm.phy_mem_pts
-                   << ",io="    << (void *)si->pmm.io_pts
-                   << ",umemb=" << (void *)si->pmm.usr_mem_base
-                   << ",umemt=" << (void *)si->pmm.usr_mem_top
-                   << ",sysc="  << (void *)si->pmm.sys_code
-                   << ",sysd="  << (void *)si->pmm.sys_data
-                   << ",syss="  << (void *)si->pmm.sys_stack
-                   << ",apct="  << (void *)si->pmm.app_code_pts
-                   << ",apdt="  << (void *)si->pmm.app_data_pts
-                   << ",fr1b="  << (void *)si->pmm.free1_base
-                   << ",fr1t="  << (void *)si->pmm.free1_top
-                   << ",fr2b="  << (void *)si->pmm.free2_base
-                   << ",fr2t="  << (void *)si->pmm.free2_top
+                   << "{memb="  << reinterpret_cast<void *>(si->bm.mem_base)
+                   << ",memt="  << reinterpret_cast<void *>(si->bm.mem_top)
+                   << ",miob="  << reinterpret_cast<void *>(si->bm.mio_base)
+                   << ",miot="  << reinterpret_cast<void *>(si->bm.mio_top)
+                   << "{si="    << reinterpret_cast<void *>(si->pmm.sys_info)
+                   << ",spt="   << reinterpret_cast<void *>(si->pmm.sys_pt)
+                   << ",spd="   << reinterpret_cast<void *>(si->pmm.sys_pd)
+                   << ",mem="   << reinterpret_cast<void *>(si->pmm.phy_mem_pts)
+                   << ",io="    << reinterpret_cast<void *>(si->pmm.io_pts)
+                   << ",umemb=" << reinterpret_cast<void *>(si->pmm.usr_mem_base)
+                   << ",umemt=" << reinterpret_cast<void *>(si->pmm.usr_mem_top)
+                   << ",sysc="  << reinterpret_cast<void *>(si->pmm.sys_code)
+                   << ",sysd="  << reinterpret_cast<void *>(si->pmm.sys_data)
+                   << ",syss="  << reinterpret_cast<void *>(si->pmm.sys_stack)
+                   << ",apct="  << reinterpret_cast<void *>(si->pmm.app_code_pts)
+                   << ",apdt="  << reinterpret_cast<void *>(si->pmm.app_data_pts)
+                   << ",fr1b="  << reinterpret_cast<void *>(si->pmm.free1_base)
+                   << ",fr1t="  << reinterpret_cast<void *>(si->pmm.free1_top)
+                   << ",fr2b="  << reinterpret_cast<void *>(si->pmm.free2_base)
+                   << ",fr2t="  << reinterpret_cast<void *>(si->pmm.free2_top)
                    << "})" << endl;
 
     // Get the physical address for the System Page Directory
@@ -608,7 +600,7 @@ void Setup::setup_sys_pd()
     // Calculate the number of page tables needed to map the physical memory
     unsigned int mem_size = MMU::pages(si->bm.mem_top - si->bm.mem_base);
     unsigned int n_pts = MMU::page_tables(mem_size);
-    db<Setup>(INF) << "mem_size="<< mem_size << ",n_pts=" << n_pts << (void *) si->pmm.phy_mem_pts << ",syspd=" << (void *) si->pmm.sys_pd << "Size pte=" << sizeof(PT_Entry) << endl;
+    db<Setup>(INF) << "mem_size="<< mem_size << ",n_pts=" << n_pts << reinterpret_cast<void *>( si->pmm.phy_mem_pts) << ",syspd=" << reinterpret_cast<void *>( si->pmm.sys_pd) << "Size pte=" << sizeof(PT_Entry) << endl;
     // Map the whole physical memory into the page tables pointed by phy_mem_pts
     PT_Entry * pts = reinterpret_cast<PT_Entry *>(si->pmm.phy_mem_pts);
 
@@ -657,7 +649,7 @@ void Setup::setup_sys_pd()
     db<Setup>(INF) << "sys pd for io pts done" << endl;
 
     db<Setup>(INF) << "attach SYS pt on sys pd[sys]:" << MMU::directory(SYS) 
-                    << ", with sys_pt[0] = " <<  hex << *((int *) si->pmm.sys_pt) << endl;
+                    << ", with sys_pt[0] = " <<  hex << *(reinterpret_cast<int *>( si->pmm.sys_pt)) << endl;
     db<Setup>(INF) << "sys_pd[sys+1];" << MMU::directory(SYS)+1 
                     << ", with sys_pt[1] = " << hex << *((int *) (si->pmm.sys_pt+sizeof(Page_Table))) << endl;
     // Attach the OS (i.e. sys_pt)
@@ -698,7 +690,7 @@ void Setup::enable_paging()
     // Clear TTBCR for the system to use ttbr0 instead of 1
     CPU::ttbcr(0);
     // Set ttbr0 with base address
-    CPU::ttbr0((Traits<System>::multitask) ? si->pmm.sys_pd : PAGE_TABLES);
+    CPU::ttbr0((Traits<System>::multitask) ? si->pmm.sys_pd : FLAT_PAGE_TABLE);
 
     // Enable MMU through SCTLR and ACTLR
     CPU::actlr(CPU::actlr() | CPU::SMP); // Set SMP bit
@@ -810,9 +802,9 @@ void Setup::load_parts()
 
 void Setup::adjust_perms()
 {
-    db<Setup>(TRC) << "Setup::adjust_perms(appc={b=" << (void *)si->pmm.app_code << ",s=" << MMU::pages(si->lm.app_code_size) << "}"
-                   << ",appd={b=" << (void *)si->pmm.app_data << ",s=" << MMU::pages(si->lm.app_data_size) << "}"
-                   << ",appe={b=" << (void *)si->pmm.app_extra << ",s=" << MMU::pages(si->lm.app_extra_size) << "}"
+    db<Setup>(TRC) << "Setup::adjust_perms(appc={b=" << reinterpret_cast<void *>(si->pmm.app_code) << ",s=" << MMU::pages(si->lm.app_code_size) << "}"
+                   << ",appd={b=" << reinterpret_cast<void *>(si->pmm.app_data) << ",s=" << MMU::pages(si->lm.app_data_size) << "}"
+                   << ",appe={b=" << reinterpret_cast<void *>(si->pmm.app_extra) << ",s=" << MMU::pages(si->lm.app_extra_size) << "}"
                    << "})" << endl;
 
 
@@ -843,7 +835,7 @@ void Setup::call_next()
         if(si->lm.has_ini) {
             if(cpu_id == 0) {
                 db<Setup>(TRC) << "Executing system's global constructors ..." << endl;
-                reinterpret_cast<void (*)()>((void *)si->lm.sys_entry)();
+                reinterpret_cast<void (*)()>(reinterpret_cast<void *>(si->lm.sys_entry))();
             }
             ip = si->lm.ini_entry;
         } else if(si->lm.has_sys)
@@ -890,41 +882,42 @@ void _entry()
 {
     // Interrupt Vector Table
     // We use and indirection table for the ldr instructions because the offset can be to far from the PC to be encoded
-    ASM("               ldr pc, reset                                           \t\n\
-                        ldr pc, ui                                              \t\n\
-                        ldr pc, si                                              \t\n\
-                        ldr pc, pa                                              \t\n\
-                        ldr pc, da                                              \t\n\
-                        nop             // _reserved                            \t\n\
-                        ldr pc, irq                                             \t\n\
-                        ldr pc, fiq                                             \t\n\
+    ASM("               ldr pc, .reset                                          \t\n\
+                        ldr pc, .ui                                             \t\n\
+                        ldr pc, .si                                             \t\n\
+                        ldr pc, .pa                                             \t\n\
+                        ldr pc, .da                                             \t\n\
+                        ldr pc, .reserved                                       \t\n\
+                        ldr pc, .irq                                            \t\n\
+                        ldr pc, .fiq                                            \t\n\
                                                                                 \t\n\
                         .balign 32                                              \t\n\
-        reset:          .word _reset                                            \t\n\
-        ui:             .word 0x0                                               \t\n\
-        si:             .word 0x0                                               \t\n\
-        pa:             .word 0x0                                               \t\n\
-        da:             .word 0x0                                               \t\n\
-        irq:            .word 0x0                                               \t\n\
-        fiq:            .word 0x0                                               ");
+        .reset:         .word _reset                                            \t\n\
+        .ui:            .word 0x0                                               \t\n\
+        .si:            .word 0x0                                               \t\n\
+        .pa:            .word 0x0                                               \t\n\
+        .da:            .word 0x0                                               \t\n\
+        .reserved:      .word 0x0                                               \t\n\
+        .irq:           .word 0x0                                               \t\n\
+        .fiq:           .word 0x0                                               \t");
 }
 
 void _reset()
 {
     // QEMU get us here in SVC mode with interrupt disabled, but the real Raspberry Pi3 starts in hypervisor mode, so we must switch to SVC mode
-    if(!Traits<Machine>::SIMULATED) {
-        CPU::Reg cpsr = CPU::cpsr();
+    if(!Traits<Machine>::emulated) {
+        CPU::Reg cpsr = CPU::psr();
         cpsr &= ~CPU::FLAG_M;           // clear mode bits
         cpsr |= CPU::MODE_SVC;          // set supervisor flag
-        CPU::cpsrc(cpsr);               // enter supervisor mode
+        CPU::psrc(cpsr);                // enter supervisor mode
         CPU::Reg address = CPU::ra();
         CPU::elr_hyp(address);
-        CPU::r12_to_psr();
+        CPU::tmp_to_psr();
     }
 
     // Configure a stack for SVC mode, which will be used until the first Thread is created
     CPU::mode(CPU::MODE_SVC); // enter SVC mode (with interrupts disabled)
-    CPU::sp(Traits<Machine>::BOOT_STACK + Traits<Machine>::STACK_SIZE * CPU::id());
+    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1) - sizeof(long));
 
     if(CPU::id() == 0) {
         // After a reset, we copy the vector table to 0x0000 to get a cleaner memory map (it is originally at 0x8000)
@@ -940,8 +933,11 @@ void _reset()
         CPU::ldmia();
         CPU::stmia();
 
+        // Adjust VBAR
+        CPU::vbar(Memory_Map::VECTOR_TABLE);
+
         // Clear the BSS (SETUP was linked to CRT0, but entry point didn't go through BSS clear)
-        _bss_clear();
+        Machine::clear_bss();
     } else {
         BCM_Mailbox * mbox = reinterpret_cast<BCM_Mailbox *>(Memory_Map::MBOX_CTRL_BASE);
         mbox->eoi(0);
@@ -955,11 +951,11 @@ void _setup()
 {
     CPU::int_disable(); // interrupts will be re-enabled at init_end
 
-    CPU::enable_fpu();
+    CPU::fpu_enable();
     CPU::flush_caches();
     CPU::flush_branch_predictors();
     CPU::flush_tlb();
-    CPU::actlr(CPU::actlr() | CPU::DCACHE_PREFE); // enable Dside prefetch
+    CPU::actlr(CPU::actlr() | CPU::DCACHE_PREFETCH); // enable Dside prefetch
     
     Setup setup;
 }

@@ -1,8 +1,17 @@
 // EPOS LM3S811 (ARM Cortex-M3) SETUP
 
 #include <system/config.h>
+#include <system/info.h>
 
-extern "C" { void _vector_table() __attribute__ ((used, naked, section(".init"))); }
+extern "C" {
+    void _start();
+
+    // SETUP entry point is the Vector Table and resides in the .init section (not in .text), so it will be linked first and will be the first function after the ELF header in the image.
+    void _vector_table() __attribute__ ((used, naked, section(".init")));
+
+    // LD eliminates this variable while performing garbage collection, that's why the used attribute.
+    char __boot_time_system_info[sizeof(EPOS::S::System_Info)] __attribute__ ((used)) = "<System_Info placeholder>"; // actual System_Info will be added by mkbi!
+}
 
 // Interrupt Vector Table
 void _vector_table()

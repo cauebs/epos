@@ -282,7 +282,7 @@ int main(int argc, char **argv)
                 return 0;
             }
 
-            char placeholder[] = "System_Info placeholder. Actual System_Info will be added by mkbi!";
+            char placeholder[] = "<System_Info placeholder>";
             char * setup_si = reinterpret_cast<char *>(memmem(buffer, stat.st_size, placeholder, strlen(placeholder)));
             if(setup_si) {
                 si_offset = setup_si - buffer;

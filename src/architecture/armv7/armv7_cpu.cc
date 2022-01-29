@@ -32,7 +32,7 @@ if(thumb)
         "       str     r2,  [%0, #-16]         \n"
         "       str     r1,  [%0, #-12]         \n"
         "       str     r0,  [%0, #-8]          \n" : : "r"(this));
-    psr_to_r12();
+    psr_to_tmp();
     ASM("       str     r12, [%0, #-4]          \n"
         "       ldr     r12, [sp, #-68]         \n"
         "       add     %0, %0, #-68            \n"
@@ -41,59 +41,22 @@ if(thumb)
 
 void CPU::Context::load() const volatile
 {
-    ASM("       mov     sp, %0                  \n"
-        "       isb                             \n" : : "r"(this)); // serialize the pipeline so that SP gets updated before the pop
-
-    ASM("       add     sp, #8                  \n");       // skip usp, ulr
-
-    ASM("       pop     {r12}                   \n");
-    r12_to_psr();                                           // the context is loaded in SVC; with multitasking, a second context drives a mode change at _int_leave
-    ASM("       pop     {r0-r12, lr}            \n"
-        "       pop     {pc}                    \n");
+    sp(this);
+    Context::pop();
 }
 
-// This function assumes A[T]PCS (i.e. "o" is in r0/a0 and "n" is in r1/a1)
 void CPU::switch_context(Context ** o, Context * n)
 {
-    // Push the context into the stack and adjust "o" to match
-    ASM("       sub     sp, #4                  \n"     // reserve room for PC
-        "       push    {r0-r12, lr}            \n"     // push all registers (LR first, r0 last)
-        "       adr     r12, .ret               \n");   // calculate the return address using the saved r12 as a temporary
-if(thumb)
-    ASM("       orr     r12, #1                 \n");   // adjust the return address in thumb mode
-
-    ASM("       str     r12, [sp, #56]          \n");   // save calculated PC
-
-    if(Traits<FPU>::enabled && !Traits<FPU>::user_save)
-        fpu_save();
-
-    psr_to_r12();                                       // save PSR to temporary register r12
-    ASM("       push    {r12}                   \n");   // save PSR
-
-    ASM("       sub     sp, #8                  \n");   // skip ulr and usp
-
-    ASM("       str     sp, [r0]                \n");   // update Context * volatile * o
+    // Push the context into the stack and update "o"
+    Context::push();
+    *o = sp();
 
     // Set the stack pointer to "n" and pop the context
-    ASM("       mov     sp, r1                  \n"     // get Context * volatile n into SP
-        "       isb                             \n");   // serialize the pipeline so SP gets updated before the pop
+    sp(n);
+    Context::pop();
 
-    ASM("       add     sp, #8                  \n");   // skip usp and ulr
-
-    ASM("       pop     {r12}                   \n");   // pop PSR into temporary register r12
-    r12_to_psr();                                       // restore PSR
-
-    if(Traits<FPU>::enabled && !Traits<FPU>::user_save)
-        fpu_restore();
-
-    ASM("       pop     {r0-r12, lr}            \n");   // pop all registers (r0 first, LR last)
-
-#ifdef __cortex_m__
-    int_enable();
-#endif
-
-    ASM("       pop     {pc}                    \n"     // restore PC
-        ".ret:  bx      lr                      \n");   // return
+    // Cross-domain return point used in save_regs()
+    iret();
 }
 
 __END_SYS

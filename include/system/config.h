@@ -84,6 +84,7 @@ namespace EPOS {
 #define __TIMER_H               __HEADER_MACH(timer)
 
 #ifdef __mmod_legacy_pc__
+#define __pc__
 #define __TSC_H                 __HEADER_ARCH(tsc)
 #define __PMU_H                 __HEADER_ARCH(pmu)
 

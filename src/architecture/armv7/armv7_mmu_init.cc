@@ -3,6 +3,8 @@
 #include <architecture/mmu.h>
 #include <system.h>
 
+#ifdef __cortex_a53__
+
 __BEGIN_SYS
 
 void ARMv7_MMU::init()
@@ -18,3 +20,4 @@ void ARMv7_MMU::init()
 
 __END_SYS
 
+#endif

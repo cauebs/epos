@@ -26,7 +26,6 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;     // Not needed for this machine
     static const unsigned int SETUP             = 0x80000000;   // RAM_BASE (will be part of the free memory at INIT, using a logical address identical to physical eliminate SETUP relocation)
-    static const unsigned int BOOT_STACK        = 0x8007fffc;   // RAM_BASE + 512 KB - 4 (will be used as the stack pointer, not the base)
     static const unsigned int INIT              = 0x80080000;   // RAM_BASE + 512 KB (will be part of the free memory at INIT)
     static const unsigned int IMAGE             = 0x80100000;   // RAM_BASE + 1 MB (will be part of the free memory at INIT, defines the maximum image size; if larger than 3 MB then adjust at SETUP)
 

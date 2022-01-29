@@ -18,7 +18,7 @@ protected:
 public:
     typedef unsigned char  Reg8;
     typedef unsigned short Reg16;
-    typedef unsigned long  Reg32;
+    typedef IF<Traits<CPU>::WORD_SIZE == 64, unsigned int /* LP64 */, unsigned long /* IPL32 */>::Result Reg32;
     typedef unsigned long long Reg64;
     typedef SWITCH<Traits<CPU>::WORD_SIZE, CASE<16, Reg16, CASE<32, Reg32, CASE<64, Reg64>>>>::Result Reg;
 
@@ -88,9 +88,6 @@ public:
     static Reg fr();            // ABI function return (either a register or from the stack)
     static void fr(Reg fr);
 
-    static unsigned int id();
-    static unsigned int cores();
-
     static Hertz clock()  { return Traits<CPU>::CLOCK; }
     static void clock(const Hertz & frequency) {}
     static Hertz max_clock() { return Traits<CPU>::CLOCK; }
@@ -105,33 +102,37 @@ public:
 
     static void halt() { for(;;); }
 
-    static void fpu_save();
-    static void fpu_restore();
-
     static void switch_context(Context * volatile * o, Context * volatile n);
 
     static void syscall(void * message);
 
-    static bool tsl(volatile bool & lock) {
-        bool old = lock;
+    static unsigned int id();
+    static unsigned int cores();
+
+    template <typename T>
+    static T tsl(volatile T & lock) {
+        T old = lock;
         lock = 1;
         return old;
     }
 
-    static int finc(volatile int & value) {
-        int old = value;
+    template <typename T>
+    static T finc(volatile T & value) {
+        T old = value;
         value++;
         return old;
     }
 
-    static int fdec(volatile int & value) {
-        int old = value;
+    template <typename T>
+    static T fdec(volatile T & value) {
+        T old = value;
         value--;
         return old;
     }
 
-    static int cas(volatile int & value, int compare, int replacement) {
-        int old = value;
+    template <typename T>
+    static T cas(volatile T & value, T compare, T replacement) {
+        T old = value;
         if(value == compare) {
             value = replacement;
         }
@@ -140,20 +141,25 @@ public:
 
     template <int (* finc)(volatile int &)>
     static void smp_barrier(unsigned int cores, unsigned int id) {
-        static volatile int ready[2];
-        static volatile int i;
+        if(cores > 1) {
+            static volatile int ready[2];
+            static volatile int i;
 
-        int j = i;
+            int j = i;
 
-        finc(ready[j]);
-        if(id == 0) {
-            while(ready[j] < int(cores));       // wait for all CPUs to be ready
-            i = !i;                             // toggle ready
-            ready[j] = 0;                       // signalizes waiting CPUs
-        } else {
-            while(ready[j]);                    // wait for CPU[0] signal
+            finc(ready[j]);
+            if(id == 0) {
+                while(ready[j] < int(cores));       // wait for all CPUs to be ready
+                i = !i;                             // toggle ready
+                ready[j] = 0;                       // signalizes waiting CPUs
+            } else {
+                while(ready[j]);                    // wait for CPU[0] signal
+            }
         }
     }
+
+    static void fpu_save();
+    static void fpu_restore();
 
     static void flush_tlb();
     static void flush_tlb(Log_Addr addr);

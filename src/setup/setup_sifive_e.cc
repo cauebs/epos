@@ -1,4 +1,5 @@
-// EPOS SiFive-U (RISC-V) SETUP
+// EPOS SiFive-E (RISC-V) SETUP
+
 // If multitasking is enabled, configure the machine in supervisor mode and activate paging. Otherwise, keep the machine in machine mode.
 
 #include <architecture.h>
@@ -8,7 +9,6 @@
 
 extern "C" {
     void _start();
-    void _bss_clear();
 
     void _int_entry();
     void _int_m2s() __attribute((naked, aligned(4)));
@@ -18,8 +18,8 @@ extern "C" {
     void _entry() __attribute__ ((used, naked, section(".init")));
     void _setup();
 
-    // LD eliminates this variable while performing garbage collection, so --undefined=__boot_time_system_info must be present while linking
-    char __boot_time_system_info[sizeof(EPOS::S::System_Info)] = "System_Info placeholder. Actual System_Info will be added by mkbi!";
+    // LD eliminates this variable while performing garbage collection, that's why the used attribute.
+    char __boot_time_system_info[sizeof(EPOS::S::System_Info)] __attribute__ ((used)) = "<System_Info placeholder>"; // actual System_Info will be added by mkbi!
 }
 
 __BEGIN_SYS
@@ -53,18 +53,12 @@ private:
     typedef CPU::Reg Reg;
     typedef CPU::Phy_Addr Phy_Addr;
     typedef CPU::Log_Addr Log_Addr;
-    typedef CPU::FSR FSR;
-    typedef MMU::Page Page;
     typedef MMU::Page_Flags Flags;
+    typedef MMU::Page Page;
     typedef MMU::Page_Table Page_Table;
     typedef MMU::Page_Directory Page_Directory;
     typedef MMU::PT_Entry PT_Entry;
     typedef MMU::PD_Entry PD_Entry;
-
-    // System_Info Imports
-    typedef System_Info::Boot_Map BM;
-    typedef System_Info::Physical_Memory_Map PMM;
-    typedef System_Info::Load_Map LM;
 
 public:
     Setup();
@@ -75,10 +69,10 @@ private:
 
     void say_hi();
 
-    void setup_sys_pt();
-    void setup_app_pt();
-    void setup_sys_pd();
     void setup_m2s();
+    void setup_sys_pt();
+    void setup_sys_pd();
+    void setup_app_pt();
     void enable_paging();
 
     void load_parts();
@@ -106,12 +100,12 @@ Setup::Setup()
 
         bi = reinterpret_cast<char *>(IMAGE);
         si = reinterpret_cast<System_Info *>(&__boot_time_system_info);
+        if(si->bm.n_cpus > Traits<Machine>::CPUS)
+            si->bm.n_cpus = Traits<Machine>::CPUS;
 
         db<Setup>(TRC) << "Setup(bi=" << reinterpret_cast<void *>(bi) << ",sp=" << CPU::sp() << ")" << endl;
         db<Setup>(INF) << "Setup:si=" << *si << endl;
 
-        if(si->bm.n_cpus > Traits<Machine>::CPUS)
-            si->bm.n_cpus = Traits<Machine>::CPUS;
 
         if(CPU::id() == 0) { // bootstrap CPU (BSP)
 
@@ -143,7 +137,7 @@ Setup::Setup()
             // Signalize other CPUs that paging is up
             paging_ready = true;
 
-        } else { // Additional CPUs (APs)
+        } else { // additional CPUs (APs)
 
             // Wait for the Boot CPU to setup page tables
             while(!paging_ready);
@@ -157,6 +151,7 @@ Setup::Setup()
     // SETUP ends here, so let's transfer control to the next stage (INIT or APP)
     call_next();
 }
+
 
 void Setup::build_lm()
 {
@@ -326,6 +321,7 @@ void Setup::build_lm()
     }
 }
 
+
 void Setup::build_pmm()
 {
     db<Setup>(TRC) << "Setup::build_pmm()" << endl;
@@ -356,8 +352,8 @@ void Setup::build_pmm()
 
     // Page tables to map the IO address space
     // = NP/NPTE_PT * sizeof(Page)
-    // NP = size of I/O address space in pages
-    // NPTE_PT = number of page table entries per page table
+    //   NP = size of I/O address space in pages
+    //   NPTE_PT = number of page table entries per page table
     top_page -= MMU::page_tables(MMU::pages(si->bm.mio_top - si->bm.mio_base));
     si->pmm.io_pts = top_page * sizeof(Page);
 
@@ -385,7 +381,7 @@ void Setup::build_pmm()
     top_page -= MMU::pages(si->lm.sys_stack_size);
     si->pmm.sys_stack = top_page * sizeof(Page);
 
-    // The memory allocated so far will "disappear" from the system as we set mem_top as follows:
+    // The memory allocated so far will "disappear" from the system as we set usr_mem_top as follows:
     si->pmm.usr_mem_base = si->bm.mem_base;
     si->pmm.usr_mem_top = top_page * sizeof(Page);
 
@@ -408,6 +404,7 @@ void Setup::build_pmm()
     }
 }
 
+
 void Setup::say_hi()
 {
     db<Setup>(TRC) << "Setup::say_hi()" << endl;
@@ -422,6 +419,7 @@ void Setup::say_hi()
     if(!si->lm.has_sys)
         db<Setup>(INF) << "No SYSTEM in boot image, assuming EPOS is a library!" << endl;
 
+    kout << "This is EPOS!\n" << endl;
     kout << "Setting up this machine as follows: " << endl;
     kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in" : "kernel") << endl;
     kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV32 at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
@@ -443,7 +441,7 @@ void Setup::say_hi()
     if(si->lm.has_ini)
         kout << "  Init:         " << si->lm.ini_code_size + si->lm.ini_data_size << " bytes" << endl;
     if(si->lm.has_sys)
-        kout << "  OS code:      " << si->lm.sys_code_size << " bytes" << "\tdata: " << si->lm.sys_data_size << " bytes" << "    stack: " << si->lm.sys_stack_size << " bytes" << endl;
+        kout << "  OS code:      " << si->lm.sys_code_size << " bytes" << "\tdata: " << si->lm.sys_data_size << " bytes" << "   stack: " << si->lm.sys_stack_size << " bytes" << endl;
     if(si->lm.has_app)
         kout << "  APP code:     " << si->lm.app_code_size << " bytes" << "\tdata: " << si->lm.app_data_size << " bytes" << endl;
     if(si->lm.has_ext)
@@ -451,6 +449,7 @@ void Setup::say_hi()
 
     kout << endl;
 }
+
 
 void Setup::setup_sys_pt()
 {
@@ -496,6 +495,7 @@ void Setup::setup_sys_pt()
     db<Setup>(INF) << "SYS_PT=" << *reinterpret_cast<Page_Table *>(sys_pt) << endl;
 }
 
+
 void Setup::setup_app_pt()
 {
     db<Setup>(TRC) << "Setup::setup_app_pt(appc={b=" << (void *)si->pmm.app_code << ",s=" << MMU::pages(si->lm.app_code_size) << "}"
@@ -526,9 +526,10 @@ void Setup::setup_app_pt()
     db<Setup>(INF) << "APPD_PT=" << *reinterpret_cast<Page_Table *>(app_data_pt) << endl;
 }
 
+
 void Setup::setup_sys_pd()
 {
-    db<Setup>(TRC) << "setup_sys_pd(bm="
+    db<Setup>(TRC) << "Setup::setup_sys_pd(bm="
                    << "{memb="  << (void *)si->bm.mem_base
                    << ",memt="  << (void *)si->bm.mem_top
                    << ",miob="  << (void *)si->bm.mio_base
@@ -564,9 +565,9 @@ void Setup::setup_sys_pd()
     // Map the whole physical memory into the page tables pointed by phy_mem_pts
     PT_Entry * pts = reinterpret_cast<PT_Entry *>(si->pmm.phy_mem_pts);
     for(unsigned int i = 0; i < mem_size; i++)
-        pts[i] = MMU::phy2pte((si->bm.mem_base + i * sizeof(Page)), Flags::SYS);
+        pts[i] = MMU::phy2pte(si->bm.mem_base + i * sizeof(Page), Flags::SYS);
 
-    // Attach all physical memory starting at PHY_MEM
+    // Attach all the physical memory starting at PHY_MEM
     assert((MMU::directory(MMU::align_directory(PHY_MEM)) + n_pts) < (MMU::PD_ENTRIES - 4)); // check if it would overwrite the OS
     for(unsigned int i = MMU::directory(MMU::align_directory(PHY_MEM)), j = 0; i < MMU::directory(MMU::align_directory(PHY_MEM)) + n_pts; i++, j++)
         sys_pd[i] = MMU::phy2pde(si->pmm.phy_mem_pts + j * sizeof(Page));
@@ -580,7 +581,7 @@ void Setup::setup_sys_pd()
     // Attach all physical memory starting at RAM_BASE
     assert((MMU::directory(MMU::align_directory(RAM_BASE)) + n_pts) < (MMU::PD_ENTRIES - 4)); // check if it would overwrite the OS
     for(unsigned int i = MMU::directory(MMU::align_directory(RAM_BASE)), j = 0; i < MMU::directory(MMU::align_directory(RAM_BASE)) + n_pts; i++, j++)
-        sys_pd[i] = MMU::phy2pde((si->pmm.phy_mem_pts + j * sizeof(Page)));
+        sys_pd[i] = MMU::phy2pde(si->pmm.phy_mem_pts + j * sizeof(Page));
 
     // Calculate the number of page tables needed to map the IO address space
     unsigned int io_size = MMU::pages(si->bm.mio_top - si->bm.mio_base);
@@ -589,12 +590,12 @@ void Setup::setup_sys_pd()
     // Map IO address space into the page tables pointed by io_pts
     pts = reinterpret_cast<PT_Entry *>(si->pmm.io_pts);
     for(unsigned int i = 0; i < io_size; i++)
-        pts[i] = MMU::phy2pte((si->bm.mio_base + i * sizeof(Page)), Flags::IO);
+        pts[i] = MMU::phy2pte(si->bm.mio_base + i * sizeof(Page), Flags::IO);
 
     // Attach devices' memory at Memory_Map::IO
     assert((MMU::directory(MMU::align_directory(IO)) + n_pts) < (MMU::PD_ENTRIES - 3)); // check if it would overwrite the OS
     for(unsigned int i = MMU::directory(MMU::align_directory(IO)), j = 0; i < MMU::directory(MMU::align_directory(IO)) + n_pts; i++, j++)
-        sys_pd[i] = MMU::phy2pde((si->pmm.io_pts + j * sizeof(Page)));
+        sys_pd[i] = MMU::phy2pde(si->pmm.io_pts + j * sizeof(Page));
 
     // Attach the OS (i.e. sys_pt)
     sys_pd[MMU::directory(SYS)] = MMU::phy2pde(si->pmm.sys_pt);
@@ -619,12 +620,13 @@ void Setup::setup_m2s()
     memcpy(reinterpret_cast<void *>(Memory_Map::RAM_TOP + 1 - sizeof(Page)), reinterpret_cast<void *>(&_int_m2s), sizeof(Page));
 }
 
+
 void Setup::enable_paging()
 {
     db<Setup>(TRC) << "Setup::enable_paging()" << endl;
     if(Traits<Setup>::hysterically_debugged) {
-        db<Setup>(INF) << "pc=" << CPU::pc() << endl;
-        db<Setup>(INF) << "sp=" << CPU::sp() << endl;
+        db<Setup>(INF) << "Setup::pc=" << CPU::pc() << endl;
+        db<Setup>(INF) << "Setup::sp=" << CPU::sp() << endl;
     }
 
     // Set SATP and enable paging
@@ -634,10 +636,11 @@ void Setup::enable_paging()
     MMU::flush_tlb();
 
     if(Traits<Setup>::hysterically_debugged) {
-        db<Setup>(INF) << "pc=" << CPU::pc() << endl;
-        db<Setup>(INF) << "sp=" << CPU::sp() << endl;
+        db<Setup>(INF) << "Setup::pc=" << CPU::pc() << endl;
+        db<Setup>(INF) << "Setup::sp=" << CPU::sp() << endl;
     }
 }
+
 
 void Setup::load_parts()
 {
@@ -685,12 +688,11 @@ void Setup::load_parts()
             db<Setup>(ERR) << "OS code segment was corrupted during SETUP!" << endl;
             panic();
         }
-        for(int i = 1; i < sys_elf->segments(); i++) {
+        for(int i = 1; i < sys_elf->segments(); i++)
             if(sys_elf->load_segment(i) < 0) {
                 db<Setup>(ERR) << "OS data segment was corrupted during SETUP!" << endl;
                 panic();
             }
-        }
     }
 
     // Load APP
@@ -707,12 +709,11 @@ void Setup::load_parts()
             db<Setup>(ERR) << "Application code segment was corrupted during SETUP!" << endl;
             panic();
         }
-        for(int i = 1; i < app_elf->segments(); i++) {
+        for(int i = 1; i < app_elf->segments(); i++)
             if(app_elf->load_segment(i) < 0) {
                 db<Setup>(ERR) << "Application data segment was corrupted during SETUP!" << endl;
                 panic();
             }
-        }
     }
 
     // Load EXTRA
@@ -720,9 +721,10 @@ void Setup::load_parts()
         db<Setup>(TRC) << "Setup::load_extra()" << endl;
         if(Traits<Setup>::hysterically_debugged)
             db<Setup>(INF) << "Setup:APP_EXTRA:" << MMU::Translation(si->lm.app_extra) << endl;
-        memcpy(reinterpret_cast<void *>(si->lm.app_extra), &bi[si->bm.extras_offset], si->lm.app_extra_size);
+        memcpy(Log_Addr(si->lm.app_extra), &bi[si->bm.extras_offset], si->lm.app_extra_size);
     }
 }
+
 
 void Setup::adjust_perms()
 {
@@ -730,7 +732,6 @@ void Setup::adjust_perms()
                    << ",appd={b=" << (void *)si->pmm.app_data << ",s=" << MMU::pages(si->lm.app_data_size) << "}"
                    << ",appe={b=" << (void *)si->pmm.app_extra << ",s=" << MMU::pages(si->lm.app_extra_size) << "}"
                    << "})" << endl;
-
 
     // Get the logical address of the first APPLICATION Page Tables
     PT_Entry * app_code_pt = MMU::phy2log(reinterpret_cast<PT_Entry *>(si->pmm.app_code_pts));
@@ -748,29 +749,29 @@ void Setup::adjust_perms()
         app_data_pt[MMU::page(APP_DATA) + i] = MMU::phy2pte(aux, Flags::APPD);
 }
 
+
 void Setup::call_next()
 {
     // Check for next stage and obtain the entry point
-    Log_Addr ip;
+    Log_Addr pc;
     Reg cpu_id = CPU::id();
 
     if(Traits<System>::multitask) {
-        int cpu_id = CPU::id();
         if(si->lm.has_ini) {
             if(cpu_id == 0) {
                 db<Setup>(TRC) << "Executing system's global constructors ..." << endl;
-                reinterpret_cast<FSR *>(si->lm.sys_entry)();
+                reinterpret_cast<void (*)()>(si->lm.sys_entry)();
             }
-            ip = si->lm.ini_entry;
+            pc = si->lm.ini_entry;
         } else if(si->lm.has_sys)
-            ip = si->lm.sys_entry;
+            pc = si->lm.sys_entry;
         else
-            ip = si->lm.app_entry;
+            pc = si->lm.app_entry;
 
         // Arrange a stack for each CPU to support stage transition
         Log_Addr sp = SYS_STACK + Traits<Machine>::STACK_SIZE * (cpu_id + 1);
 
-        db<Setup>(TRC) << "Setup::call_next(ip=" << ip << ",sp=" << sp << ") => ";
+        db<Setup>(TRC) << "Setup::call_next(pc=" << pc << ",sp=" << sp << ") => ";
         if(si->lm.has_ini)
             db<Setup>(TRC) << "INIT" << endl;
         else if(si->lm.has_sys)
@@ -780,17 +781,17 @@ void Setup::call_next()
 
         CPU::sp(sp);
     } else
-        ip = &_start;
+        pc = &_start;
 
     db<Setup>(INF) << "SETUP ends here!" << endl;
 
-    // Set SP and call next stage
-    static_cast<FSR *>(ip)();
+    // Call the next stage
+    static_cast<void (*)()>(pc)();
 
     if(Traits<System>::multitask && (cpu_id == 0)) {
         // This will only happen when INIT was called and Thread was disabled
         // Note we don't have the original stack here anymore!
-        reinterpret_cast<FSR *>(si->lm.app_entry)();
+        reinterpret_cast<void (*)()>(si->lm.app_entry)();
     }
 
     // SETUP is now part of the free memory and this point should never be
@@ -830,7 +831,7 @@ void _setup() // supervisor mode
         CPU::mie(CPU::MSI);                             // enable MSI at CLINT so IPI can be triggered
 
     if(CPU::id() == 0)
-        _bss_clear();
+        Machine::clear_bss();
     else {
         CLINT::stvec(CLINT::DIRECT, _int_wfi);          // setup a supervisor mode IPI handler
         CPU::int_enable();                              // enable interrupts to wait for IPI

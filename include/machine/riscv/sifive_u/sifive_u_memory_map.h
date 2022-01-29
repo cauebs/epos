@@ -18,7 +18,7 @@ struct Memory_Map
         RAM_TOP         = Traits<Machine>::RAM_TOP,
         MIO_BASE        = Traits<Machine>::MIO_BASE,
         MIO_TOP         = Traits<Machine>::MIO_TOP,
-        BOOT_STACK      = Traits<Machine>::BOOT_STACK,
+        BOOT_STACK      = RAM_BASE + 512 * 1024 - sizeof(long), // RAM_BASE + 512 KB - 4 (will be used as the stack pointer, not the base)
 
         // Memory-mapped devices
         TEST_BASE       = 0x00100000, // SiFive test engine

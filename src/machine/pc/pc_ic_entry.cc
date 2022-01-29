@@ -1,5 +1,6 @@
 // EPOS PC Interrupt Dispatcher
 
+#include <architecture.h>
 #include <machine/ic.h>
 
 extern "C" { void _exit(int s); }
@@ -781,13 +782,14 @@ void IC::entry()
         //        "        jmp        .GO         \n"
         //        "        .align 16              \n"
         //        "        movl        $255, %0   \n"
-        ".GO:    pushal                 \n" : "=m"(id) : );
+        ".GO:    pusha                  \n" : "=m"(id) : );
 
-    ASM("        pushl  %0              \n"
+    ASM("        push   %0              \n"
         "        call   *%1             \n"
-        "        popl   %%eax           \n"
-        "        popal                  \n"
-        "        iret                   \n" : : "m"(id), "c"(dispatch));
+        "        pop    %%eax           \n" : : "m"(id), "c"(dispatch));
+
+    ASM("        popa                   \n"
+        "        iret                   \n");
 };
 
 // Default logical handler
@@ -813,7 +815,7 @@ void IC::exc_pf(Reg eip, Reg cs, Reg eflags, Reg error)
        _exit(fr);
     }
 
-    db<IC,Machine>(WRN) << "IC::exc_pf[address=" << reinterpret_cast<void *>(CPU::cr2()) << "](cs=" << hex << cs << ",ip=" << reinterpret_cast<void *>(eip) << ",fl=" << eflags << ",err=";
+    db<IC,Machine>(WRN) << "IC::exc_pf[address=" << reinterpret_cast<void *>(CPU::cr2()) << "](cs=" << hex << cs << ",ip=" << reinterpret_cast<void *>(eip) << ",sp=" << CPU::sp() << ",fl=" << hex << eflags << dec << ",err=";
     if(error & (1 << 0))
         db<IC,Machine>(WRN) << "P";
     if(error & (1 << 1))

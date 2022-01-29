@@ -117,7 +117,7 @@ public:
             int brk = 0;
             for(unsigned int i = 0; i < PT_ENTRIES; i++)
                 if(pt[i]) {
-                    os << "[" << i << "]=" << pt[i] << "  ";
+                    os << "[" << i << "]=" << pte2phy(pt[i]) << "  ";
                     if(!(++brk % 4))
                         os << "\n";
                 }

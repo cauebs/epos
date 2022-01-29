@@ -117,7 +117,7 @@ public:
         void save() volatile __attribute__ ((naked));
         void load() const volatile __attribute__ ((naked));
 
-        friend Debug & operator<<(Debug & db, const Context & c) {
+        friend OStream & operator<<(OStream & db, const Context & c) {
             db << hex
                << "{sp="   << &c
                << ",usp="  << c._usp

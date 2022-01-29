@@ -35,6 +35,8 @@ struct Memory_Map: public Cortex_Memory_Map
         VECTOR_TABLE                = Traits<Machine>::APP_CODE,
 
         // Logical Address Space
+        BOOT_STACK      = Traits<Machine>::BOOT_STACK,
+
         APP_LOW         = Traits<Machine>::APP_LOW,
         APP_HIGH        = Traits<Machine>::APP_HIGH,
         APP_CODE        = Traits<Machine>::APP_CODE,

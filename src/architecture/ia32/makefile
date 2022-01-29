@@ -20,9 +20,6 @@ $(LIBARCH):	$(LIBARCH)($(OBJS))
 
 $(LIBINIT):	$(LIBINIT)($(INITS))
 
-cpu.o		: cpu.cc
-		$(CXX) $(CXXFLAGS) -fomit-frame-pointer $<
-
 $(ARCH)_crtbegin.o: ../common/crtbegin.c
 		$(CC) $(CCFLAGS) $< -o $@
 

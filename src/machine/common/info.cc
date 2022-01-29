@@ -1,13 +1,13 @@
-// EPOS PC Run-Time System Information Implementation
+// EPOS Run-Time System Information Implementation
 
 #include <utility/debug.h>
 #include <system/info.h>
 
 __BEGIN_SYS
 
-Debug & operator<<(Debug & db, const System_Info & si)
+OStream & operator<<(OStream & os, const System_Info & si)
 {
-    db << "{"
+    os << "{"
        << "\nBoot_Map={"
        << "n_cpus=" << si.bm.n_cpus
        << ",mem_base=" << reinterpret_cast<void *>(si.bm.mem_base)
@@ -24,8 +24,15 @@ Debug & operator<<(Debug & db, const System_Info & si)
        << ",application_offset=" << si.bm.application_offset
        << ",extras_offset=" << si.bm.extras_offset << dec
        << "}"
+
+#if defined(__pc__) || defined(__riscv__) || defined(__cortex_a53__)
        << "\nPhysical_Memory_Map={"
        << "sys_info=" << reinterpret_cast<void *>(si.pmm.sys_info)
+#ifdef __pc__
+       << ",idt=" << reinterpret_cast<void *>(si.pmm.idt)
+       << ",gdt=" << reinterpret_cast<void *>(si.pmm.gdt)
+       << ",tss=" << reinterpret_cast<void *>(si.pmm.tss)
+#endif
        << ",sys_pt=" << reinterpret_cast<void *>(si.pmm.sys_pt)
        << ",sys_pd=" << reinterpret_cast<void *>(si.pmm.sys_pd)
        << ",phy_mem_pts=" << reinterpret_cast<void *>(si.pmm.phy_mem_pts)
@@ -42,8 +49,13 @@ Debug & operator<<(Debug & db, const System_Info & si)
        << ",free1_top=" << reinterpret_cast<void *>(si.pmm.free1_top)
        << ",free2_base=" << reinterpret_cast<void *>(si.pmm.free2_base)
        << ",free2_top=" << reinterpret_cast<void *>(si.pmm.free2_top)
+       << ",free3_base=" << reinterpret_cast<void *>(si.pmm.free3_base)
+       << ",free3_top=" << reinterpret_cast<void *>(si.pmm.free3_top)
        << "}"
+#endif
+
        << "\nLoad_Map={"
+#if defined(__pc__) || defined(__riscv__) || defined(__cortex_a53__)
        << "has_stp=" << si.lm.has_stp
        << ",has_ini=" << si.lm.has_ini
        << ",has_sys=" << si.lm.has_sys
@@ -68,11 +80,13 @@ Debug & operator<<(Debug & db, const System_Info & si)
        << ",app_data={b=" << reinterpret_cast<void *>(si.lm.app_data) << ",s=" << si.lm.app_data_size << "}"
        << ",app_stack=" << reinterpret_cast<void *>(si.lm.app_stack)
        << ",app_heap=" << reinterpret_cast<void *>(si.lm.app_heap)
+#endif
        << ",app_extra={b=" << reinterpret_cast<void *>(si.lm.app_extra) << ",s=" << si.lm.app_extra_size << "}"
        << "}"
        << "}";
 
-    return db;
+    return os;
 }
 
 __END_SYS
+

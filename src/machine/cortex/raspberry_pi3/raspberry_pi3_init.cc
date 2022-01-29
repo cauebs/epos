@@ -1,4 +1,4 @@
-// EPOS Raspberry Pi3 (Cortex-A53) Initialization
+// EPOS Raspberry Pi3 (ARM Cortex-A53) Initialization
 
 #include <system/config.h>
 #include <machine.h>
@@ -8,30 +8,18 @@ __BEGIN_SYS
 
 void Raspberry_Pi3::pre_init()
 {
-    static const unsigned int RESET             = Traits<Machine>::RESET; // must not be 0, otherwise, SEV won't wakeup secondary cores
-    static const unsigned int MBOX_CTRL_BASE    = Memory_Map::MBOX_CTRL_BASE;
-    static const unsigned int MBOX_CORE1_OFFSET = 0x9c;
-    static const unsigned int MBOX_CORE2_OFFSET = 0xac;
-    static const unsigned int MBOX_CORE3_OFFSET = 0xbc;
+    BCM_Mailbox * mbox = reinterpret_cast<BCM_Mailbox *>(Memory_Map::MBOX_CTRL_BASE);
 
     // SMP initialization
     if(CPU::id() == 0) {
         // This is only a flat segment register that allows mapping the start point for the secondary cores
         // For the Send Event to take place, the start point is required to be non 0
         // Writing 0 to this register will trigger no effects at the target CPUs
-        if(Traits<Build>::CPUS >= 2) {
-            ASM("str %0, [%1, %2]" : : "p"(RESET), "p"(MBOX_CTRL_BASE), "i"(MBOX_CORE1_OFFSET) : );
-            if(Traits<Build>::CPUS >= 3) {
-                ASM("str %0, [%1, %2]" : : "p"(RESET), "p"(MBOX_CTRL_BASE), "i"(MBOX_CORE2_OFFSET) : );
-                if(Traits<Build>::CPUS == 4) {
-                    ASM("str %0, [%1, %2]" : : "p"(RESET), "p"(MBOX_CTRL_BASE), "i"(MBOX_CORE3_OFFSET) : );
-                }
-            }
+        for(unsigned int i = 1; i < Traits<Build>::CPUS; i++) {
+            mbox->start(i, Traits<Machine>::RESET);
+            if(Traits<Machine>::hysterically_debugged)
+                delay(1000000);
         }
-
-        // Wakeup secondary cores by sending an event (SEV)
-        if(Traits<Build>::CPUS > 1)
-            ASM ("SEV");
     }
 }
 

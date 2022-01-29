@@ -12,7 +12,7 @@
 
 __BEGIN_SYS
 
-class LM3S811: public Machine_Common
+class LM3S811: private Machine_Common
 {
     friend Machine;
 

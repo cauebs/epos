@@ -65,26 +65,26 @@ void CPU::switch_context(Context * volatile * o, Context * volatile n)
 {
     // Recover the return address from the stack and save the previously running thread context ("o") into its stack
     // PUSHA saves an extra SP (which is always "this"), but saves several instruction fetches
-    ASM("        pop     %esi                    # eip                   \n"
+    ASM("        pop     %%esi                   # eip                   \n"
         "        pushf                                                   \n"
-        "        push    %cs                                             \n"
-        "        push    %esi                    # eip                   \n"
-        "        pusha                                                   \n");
-    ASM("        push    %0                                              \n" : : "m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + CPU::id() * sizeof(MMU::Page))->esp));
-    ASM("        mov     48(%esp), %eax          # old                   \n"
-        "        mov     %esp, (%eax)                                    \n");
+        "        push    %%cs                                            \n"
+        "        push    %%esi                   # eip                   \n"
+        "        pusha                                                   \n"
+        "        push    %0                                              \n"
+        "        mov     48(%%esp), %%eax        # old                   \n"
+        "        mov     %%esp, (%%eax)                                  \n" : : "m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + CPU::id() * sizeof(MMU::Page))->esp));
 
-    // Restore the next thread context ("n") from its stack (and the user-level stack pointer, updating the dummy TSS)
+    // Restore the next thread context ("n") from its stack and updates the user-level stack pointer in the dummy TSS used for mode changes (user/system)
     ASM("        mov     52(%esp), %esp          # new	                 \n");
     ASM("        pop     %0                                              \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + CPU::id() * sizeof(MMU::Page))->esp) : );
 
 if(Traits<System>::multitask)
-    // Adjust the system-level stack pointer in the dummy TSS (that will be used by system calls and interrupts) for this Thread
+    // Adjust the system-level stack pointer in the dummy TSS used by this Thread for syscalls and interrupts
     ASM("        mov     %%esp, %%eax                                    \n"
         "        add     $52, %%eax                                      \n"
         "        movl    %%eax, %0                                       \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + CPU::id() * sizeof(MMU::Page))->esp0) : : "eax");
 
-    // Change context through the IRET, will pop FLAGS, CS, and IP
+    // IRET pops FLAGS, CS, and IP
     ASM("        popa                                                    \n"
         "        iret                                                    \n");
 }

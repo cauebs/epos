@@ -16,14 +16,20 @@ template<> struct Traits<Machine_Common>: public Traits<Build>
 template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
 private:
-    static const bool library_mode              = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
+    static const bool library                   = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
 
 public:
+    static const bool emulated                  = Traits<Build>::EXPECTED_SIMULATION_TIME;
     static const bool cpus_use_local_timer      = false;
+    static const bool armv7                     = (Traits<Build>::ARCHITECTURE == Traits<Build>::ARMv7);
 
     static const unsigned int NOT_USED          = 0xffffffff;
-    static const unsigned int SIMULATED         = Traits<Build>::EXPECTED_SIMULATION_TIME;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
+
+    // Default Sizes and Quantities
+    static const unsigned int STACK_SIZE        = (armv7 ? 16 : 32) * 1024;
+    static const unsigned int MAX_THREADS       = 16;
+    static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;
 
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x00000000;
@@ -33,28 +39,21 @@ public:
 
     // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int BOOT_STACK        = 0x0007fffc;   // RAM_BASE + 512KB - 4 (will be used as the stack pointer, not the base)
-    static const unsigned int IMAGE             = 0x00100000;
-    static const unsigned int RESET             = SIMULATED ? 0x00010000 : 0x00008000;
-    static const unsigned int SETUP             = library_mode ? NOT_USED : RESET;
+    static const unsigned int IMAGE             = library ? NOT_USED : 0x00100000;
+    static const unsigned int RESET             = emulated ? 0x00010000 : 0x00008000;
+    static const unsigned int SETUP             = library ? NOT_USED : RESET;
 
     // Logical Memory Map
-    static const unsigned int VECTOR_TABLE      = 0;
-    static const unsigned int APP_LOW           = library_mode ? RESET : 0x80000000;
+    static const unsigned int APP_LOW           = library ? RESET : 0x80000000;
     static const unsigned int APP_HIGH          = APP_LOW + (RAM_TOP - RAM_BASE) - 1;
 
-    static const unsigned int APP_CODE          = library_mode ? RESET : APP_LOW;
+    static const unsigned int APP_CODE          = library ? RESET : APP_LOW;
     static const unsigned int APP_DATA          = APP_CODE + 4 * 1024 * 1024;
 
-    static const unsigned int INIT              = library_mode ? NOT_USED : 0x00080000;
+    static const unsigned int INIT              = library ? NOT_USED : 0x00200000;
     static const unsigned int PHY_MEM           = 0x00000000;   // 0 (max 1792 MB)
     static const unsigned int IO                = 0x70000000;   // 2 GB - 256 MB (max 247 MB)
     static const unsigned int SYS               = 0xff700000;   // 4 GB - 9 MB
-
-    // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = 16 * 1024;
-    static const unsigned int MAX_THREADS       = 16;
-    static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;
 
     // PLL clocks
     static const unsigned int ARM_PLL_CLOCK     = 1333333333;

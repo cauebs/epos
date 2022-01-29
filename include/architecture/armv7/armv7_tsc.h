@@ -29,7 +29,7 @@ private:
         GPTMTAR = 0x48, // Counter
     };
 
-    // Zynq Global Timer Registers offsets
+    // Zynq Global Timer registers offsets
     enum {             // Description
         GTCTRL = 0x00, // Low Counter
         GTCTRH = 0x04, // High Counter
@@ -37,12 +37,12 @@ private:
         GTISR  = 0x0C  // Interrupt Status
     };
 
-    // BCM2835 cortex-a53 System Timer
+    // BCM2835 Cortex-A53 System Timer registers offsets
     enum {                                      // Description
         STCS                        = 0x00,     // Control/Status
         STCLO                       = 0x04,     // Low COUNTER
         STCHI                       = 0x08,     // High Counter
-        STC0                        = 0x0C,     // Compare 0 - Used by GPU
+        STC0                        = 0x0c,     // Compare 0 - Used by GPU
         STC1                        = 0x10,     // Compare 1 - Value used to generate interrupt 1
         STC2                        = 0X14,     // Compare 2 - Used by GPU
         STC3                        = 0X18      // Compare 3 - Value used to generate interrupt 3
