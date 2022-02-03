@@ -1,17 +1,16 @@
-// EPOS ARMv7 MMU Mediator Declarations
+// EPOS ARMv8 MMU Mediator Declarations
 
-#ifndef __armv7_mmu_h
-#define __armv7_mmu_h
+#ifndef __armv8_mmu_h
+#define __armv8_mmu_h
 
 #include <architecture/mmu.h>
 #include <system/memory_map.h>
 
 __BEGIN_SYS
 
-class ARMv7_MMU: public MMU_Common<12, 8, 12>
+class ARMv8_MMU: public MMU_Common<11, 11, 14>
 {
     friend class CPU;
-    friend class Setup;
 
 private:
     typedef Grouping_List<Frame> List;
@@ -24,62 +23,71 @@ private:
     static const unsigned int SYS = Memory_Map::SYS;
 
 public:
-    // Page Flags (for ARMv7-A small pages)
+    // Page Flags
     class Page_Flags
     {
     public:
-        // Page Table entry flags
+        // TTBR bits
         enum : unsigned long {
-            XN   = 1 << 0,      // not executable
-            PTE  = 1 << 1,      // identifies entry as Small Page == Page Table Entry
-            // Access Permission bits, assuming SCTLR.AFE = 0
-            AP0  = 1 << 4,  
-            AP1  = 1 << 5,
-            AP2  = 1 << 9,
-            RW   = AP0,         // read/write, system
-            RO   = AP2,         // read/only, system
-            USR  = (AP1 | AP0),
-            // TEX[2:0], C, B, S --> set shareability/cacheability
-            B    = 1 << 2,      // bufferable
-            C    = 1 << 3,      // cacheable
-            TEX0 = 1 << 6,
-            TEX1 = 1 << 7,
-            TEX2 = 1 << 8,
-            S    = 1 << 10,     // shareable
-            nG   = 1 << 11,     // non-global (entry in the TLB)
+            INVALID             = 0UL   << 0,
+            RESERVED            = 0b01  << 0,
+            PAGE_DESCRIPTOR     = 0b11  << 0,
+            BLOCK_DESCRIPTOR    = 0b01  << 0,
+            SEL_MAIR_ATTR0      = 0b00  << 2,
+            SEL_MAIR_ATTR1      = 0b01  << 2,
+            SEL_MAIR_ATTR2      = 0b10  << 2,
+            SEL_MAIR_ATTR3      = 0b11  << 2,
+            SEL_MAIR_ATTR4      = 0b100 << 2,
+            SEL_MAIR_ATTR5      = 0b101 << 2,
+            SEL_MAIR_ATTR6      = 0b110 << 2,
+            SEL_MAIR_ATTR7      = 0b111 << 2,
+            NON_SHAREABLE       = 0UL   << 8,
+            UNPREDICTABLE       = 0b01  << 8,
+            OUTER_SHAREABLE     = 0b10  << 8,
+            INNER_SHAREABLE     = 0b11  << 8,
+            NS_LEVEL1           = 0b1   << 5, // Output address is in secure address
+            AP1                 = 0b1   << 6,
+            AP2                 = 0b1   << 7,
+            RW_SYS              = 0b0   << 6,
+            RW_USR              = AP1,
+            RO_SYS              = AP2,
+            RO_USR              = (AP2 | AP1),
+            ACCESS              = 0b1   << 10,
+            nG                  = 1     << 11,
+            CONTIGUOUS          = 0b1ULL<< 52, // Output memory is contiguous
+            EL1_XN              = 0b1ULL<< 53, // el1 cannot execute
+            XN                  = 0b1ULL<< 54, // el0 cannot execute
+            DEV                 = SEL_MAIR_ATTR0,
+            CWT                 = SEL_MAIR_ATTR1,
+            CWB                 = SEL_MAIR_ATTR2,
+            CD                  = SEL_MAIR_ATTR3,
 
-            SDEV = B,           // shareable device memory (should not be used along with CT or CWT)
-            CD   = TEX2,        // cache disable
-            CWT  = (TEX2 | TEX1 | TEX0 | C | B),  // cacheable write through
+            FLAT_MEM_PT         = (PAGE_DESCRIPTOR  | INNER_SHAREABLE | SEL_MAIR_ATTR0 | ACCESS),
+            FLAT_MEM_BLOCK      = (BLOCK_DESCRIPTOR | INNER_SHAREABLE | SEL_MAIR_ATTR0 | ACCESS),
 
-            // Page Table flags
-            APP  = (nG | S | AP1 | AP0 | CWT | PTE),        // S, RWX  All, Normal WT
-            APPD = (nG | S | AP1 | AP0 | CWT | XN  | PTE),  // S, RWnX All, Normal WT
-            APPC = (nG | S | AP2 | AP1 | AP0 | CWT | PTE),  // S, RnWX All, Normal WT
-            SYS  = (nG | S | AP0 | CWT | PTE),              // S, RWX  SYS, Normal WT
-            IO   = (nG | AP0 | SDEV | PTE),                 // Device Memory = Shareable, RWX, SYS
-            DMA  = (nG | AP0 | SDEV | PTE),                 // Device Memory no cacheable / Old Peripheral = Shareable, RWX, B ?
-            PT_MASK = (1 << 12) - 1
+            PTE                 = (PAGE_DESCRIPTOR | ACCESS),
+
+            APP                 = (nG | INNER_SHAREABLE | RW_SYS | CWT | PTE),          // S, RWX  All, Normal WT
+            APPD                = (nG | INNER_SHAREABLE | RW_SYS | CWT | XN  | PTE),    // S, RWnX All, Normal WT
+            APPC                = (nG | INNER_SHAREABLE | RW_SYS | CWT | PTE),          // S, RnWX All, Normal WT
+            SYS                 = (nG | INNER_SHAREABLE | RW_SYS | PTE),                // S, RWX  SYS, Normal WT
+            IO                  = (nG | RW_USR | DEV | PTE),                            // Device Memory = Shareable, RWX, SYS
+            DMA                 = (nG | RO_SYS | DEV | PTE),                            // Device Memory no cacheable / Old Peripheral = Shareable, RWX, B ?
+
+            PT_MASK             = (1 << 14) - 1,
+            PD_FLAGS            = (PAGE_DESCRIPTOR | XN | EL1_XN),
+            PD_MASK             = (1 << 14) -1
         };
-
-        // Short-descriptor format | Page Directory entry flags
-        enum {
-            PDE  = 1 << 0,         // Set descriptor as Page Directory entry
-            NS   = 1 << 3,         // NonSecure Memory Region
-            PD_FLAGS = (NS | PDE),
-            PD_MASK = (1 << 10) -1
-        };
-
     public:
         Page_Flags() {}
         Page_Flags(unsigned int f) : _flags(f) {}
         Page_Flags(Flags f) : _flags(nG |
-                                    ((f & Flags::RW)  ? RW   : RO) |
-                                    ((f & Flags::USR) ? USR  : 0) |
-                                    ((f & Flags::CWT) ? CWT  : 0) |
-                                    ((f & Flags::CD)  ? CD   : 0) |
-                                    ((f & Flags::EX)  ? 0    : XN) |
-                                    ((f & Flags::IO)  ? SDEV : S) ) {}
+                                     ((f & Flags::RW)  ? RW_SYS : RO_SYS) |
+                                     // ((f & Flags::USR) ? RW_USR : 0) | // as we are in EL1, this will brake system
+                                     ((f & Flags::CWT) ? CWT  : CWB) |
+                                     ((f & Flags::CD)  ? CD   : 0) |
+                                     ((f & Flags::EX)  ? 0    : XN) |
+                                     ((f & Flags::IO)  ? IO : 0) ) {}
 
         operator unsigned int() const { return _flags; }
 
@@ -89,40 +97,7 @@ public:
         unsigned int _flags;
     };
 
-    // Section Flags (for single-level, flat memory mapping)
-    class Section_Flags
-    {
-    public:
-        // Page Table entry flags
-        enum : unsigned long {
-            ID   = 0b10 << 0,   // memory section identifier
-            B    = 1 << 2,      // bufferable
-            C    = 1 << 3,      // cacheable
-            XN   = 1 << 4,      // execute never
-            AP0  = 1 << 10,
-            AP1  = 1 << 11,
-            TEX0 = 1 << 12,
-            TEX1 = 1 << 13,
-            TEX2 = 1 << 14,
-            AP2  = 1 << 15,
-            S    = 1 << 16,     // shareable
-            nG   = 1 << 17,     // non-global (entry in the TLB)
-            nS   = 1 << 19,     // non-secure
-            FLAT_MEMORY_MEM = (nS | S | AP1 | AP0 |       C | B | ID),
-            FLAT_MEMORY_DEV = (nS | S | AP1 | AP0 |       C |     ID),
-            FLAT_MEMORY_PER = (nS | S | AP1 | AP0 |  XN |     B | ID)
-        };
-
-    public:
-        Section_Flags(unsigned int f) : _flags(f) {}
-        operator unsigned int() const { return _flags; }
-
-    private:
-        unsigned int _flags;
-    };
-
-    // Page_Table
-    template<unsigned int ENTRIES>
+template<unsigned int ENTRIES>
     class _Page_Table
     {
     public:
@@ -292,7 +267,7 @@ public:
 
         Phy_Addr pd() const { return _pd; }
 
-        void activate() const { ARMv7_MMU::pd(_pd); }
+        void activate() const { ARMv8_MMU::pd(_pd); }
 
         Log_Addr attach(const Chunk & chunk, unsigned int from = directory(APP_LOW)) {
             for(unsigned int i = from; i < directory(SYS); i++)
@@ -347,7 +322,7 @@ public:
         void detach(unsigned int from, const Page_Table * pt, unsigned int n) {
             for(unsigned int i = from; i < from + n; i++) {
                 _pd->log()[i] = 0;
-                flush_tlb(i << DIRECTORY_SHIFT);
+                // flush_tlb(i << DIRECTORY_SHIFT);
             }
             CPU::isb();
             CPU::dsb();
@@ -412,7 +387,7 @@ public:
     };
 
 public:
-    ARMv7_MMU() {}
+    ARMv8_MMU() {}
 
     static Phy_Addr alloc(unsigned int frames = 1, Color color = WHITE) {
         Phy_Addr phy(false);
@@ -475,7 +450,7 @@ public:
         return pt->log()[page(addr)] | offset(addr);
     }
 
-    static PT_Entry phy2pte(Phy_Addr frame, Page_Flags flags) { return (frame) | flags | Page_Flags::PTE; }
+    static PT_Entry phy2pte(Phy_Addr frame, unsigned long long flags) { return (frame) | flags | Page_Flags::PTE; }
     static Phy_Addr pte2phy(PT_Entry entry) { return (entry & ~Page_Flags::PT_MASK); }
     static PD_Entry phy2pde(Phy_Addr frame) { return (frame) | Page_Flags::PD_FLAGS; }
     static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::PD_MASK); }
@@ -495,12 +470,11 @@ public:
             return WHITE;
     }
 
-private:
     static Phy_Addr pd() { return CPU::pd(); }
-    static void pd(Phy_Addr pd) { CPU::pd(pd); CPU::flush_tlb(); CPU::isb(); CPU::dsb(); }
+    static void pd(Phy_Addr pd) { CPU::pd(pd); /*CPU::flush_tlb();*/ CPU::isb(); CPU::dsb(); }
 
-    static void flush_tlb() { CPU::flush_tlb(); }
-    static void flush_tlb(Log_Addr addr) { CPU::flush_tlb(directory_bits(addr)); } // only bits from 31 to 12, all ASIDs
+    static void flush_tlb() { /*CPU::flush_tlb();*/ }
+    static void flush_tlb(Log_Addr addr) { /*CPU::flush_tlb(directory_bits(addr));*/ } // only bits from 31 to 12, all ASIDs
 
     static void init();
 
@@ -509,7 +483,7 @@ private:
     static Page_Directory * _master;
 };
 
-class MMU: public IF<Traits<System>::multitask, ARMv7_MMU, No_MMU>::Result {};
+class MMU: public IF<Traits<System>::multitask, ARMv8_MMU, No_MMU>::Result {};
 
 __END_SYS
 

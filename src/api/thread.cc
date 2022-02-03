@@ -337,7 +337,7 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
         next->_state = RUNNING;
 
         db<Thread>(TRC) << "Thread::dispatch(prev=" << prev << ",next=" << next << ")" << endl;
-        if(Traits<Thread>::debugged) {
+        if(Traits<Thread>::hysterically_debugged) {
             CPU::Context tmp;
             tmp.save();
             db<Thread>(INF) << "Thread::dispatch:prev={" << prev << ",ctx=" << tmp << "}" << endl;

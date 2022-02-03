@@ -40,8 +40,8 @@ struct Memory_Map: public Cortex_Memory_Map
         GIC_DIST_BASE           = 0x1f001000,
 
         VECTOR_TABLE            = RAM_BASE, // 8 x 4b instructions + 8 x 4b pointers
-        BOOT_STACK              = VECTOR_TABLE + 4 * 1024, // will be used as the stack's base, not the stack pointer
-        FLAT_PAGE_TABLE         = Traits<System>::multitask ? NOT_USED : (RAM_TOP - 4096 * 4) & ~(0x3fff), // used only with No_MMU in LIBRARY mode; 16K-aligned TTBR; RAM_TOP - 16KB for 4K entries of 4B each, pointing to 1 MB regions, thus mapping 4 GB
+        BOOT_STACK              = VECTOR_TABLE + 4 * 1024, // will be used as the stack's base, not the stack pointer; SIZE = Traits<Build>::CPUS * Traits<Machine>::STACK_SIZE
+        FLAT_PAGE_TABLE 	= Traits<System>::multitask ? NOT_USED : (RAM_TOP - 16 * 1024) & ~(0x3fff),  // used only with No_MMU in LIBRARY mode; 16KB, 4096 4B entries, each pointing to 1 MB regions, thus mapping up to 4 GB; 16K-aligned for TTBR;
 
         // Logical Address Space
         APP_LOW                 = Traits<Machine>::RESET,

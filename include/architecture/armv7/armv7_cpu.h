@@ -9,8 +9,6 @@ __BEGIN_SYS
 
 class ARMv7: protected CPU_Common
 {
-    friend class Init_System; // for CPU::init()
-
 protected:
     static const bool multicore = Traits<System>::multicore;
     static const bool multitask = Traits<System>::multitask;

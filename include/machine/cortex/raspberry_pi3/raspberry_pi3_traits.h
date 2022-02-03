@@ -39,8 +39,8 @@ public:
 
     // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int IMAGE             = library ? NOT_USED : 0x00100000;
-    static const unsigned int RESET             = emulated ? 0x00010000 : 0x00008000;
+    static const unsigned int IMAGE             = library ? NOT_USED : (armv7 ? 0x00100000 : 0x00600000);
+    static const unsigned int RESET             = (emulated && armv7) ? 0x00010000 : 0x00080000;
     static const unsigned int SETUP             = library ? NOT_USED : RESET;
 
     // Logical Memory Map
@@ -48,12 +48,12 @@ public:
     static const unsigned int APP_HIGH          = APP_LOW + (RAM_TOP - RAM_BASE) - 1;
 
     static const unsigned int APP_CODE          = library ? RESET : APP_LOW;
-    static const unsigned int APP_DATA          = APP_CODE + 4 * 1024 * 1024;
+    static const unsigned int APP_DATA          = APP_CODE + (armv7 ? 4 : 32) * 1024 * 1024;
 
     static const unsigned int INIT              = library ? NOT_USED : 0x00200000;
     static const unsigned int PHY_MEM           = 0x00000000;   // 0 (max 1792 MB)
     static const unsigned int IO                = 0x70000000;   // 2 GB - 256 MB (max 247 MB)
-    static const unsigned int SYS               = 0xff700000;   // 4 GB - 9 MB
+    static const unsigned int SYS               = armv7 ? 0xff700000 : 0xf8000000;   // 4 GB - (armv7 ? 9 MB : 128 MB)
 
     // PLL clocks
     static const unsigned int ARM_PLL_CLOCK     = 1333333333;

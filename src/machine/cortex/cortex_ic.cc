@@ -9,12 +9,6 @@
 
 extern "C" { void _int_entry() __attribute__ ((naked, nothrow, alias("_ZN4EPOS1S2IC5entryEv"))); }
 extern "C" { void _eoi(unsigned int) __attribute__ ((alias("_ZN4EPOS1S2IC3eoiEj"))); }
-extern "C" { void _reserved() __attribute__ ((alias("_ZN4EPOS1S2IC8reservedEv"))); }
-extern "C" { void _undefined_instruction() __attribute__ ((alias("_ZN4EPOS1S2IC21undefined_instructionEv"))); }
-extern "C" { void _software_interrupt() __attribute__ ((alias("_ZN4EPOS1S2IC18software_interruptEv"))); }
-extern "C" { void _prefetch_abort() __attribute__ ((alias("_ZN4EPOS1S2IC14prefetch_abortEv"))); }
-extern "C" { void _data_abort() __attribute__ ((alias("_ZN4EPOS1S2IC10data_abortEv"))); }
-extern "C" { void _fiq() __attribute__ ((alias("_ZN4EPOS1S2IC3fiqEv"))); }
 extern "C" { void __exit(); }
 
 __BEGIN_SYS
@@ -23,6 +17,10 @@ IC::Interrupt_Handler IC::_int_vector[IC::INTS];
 
 void IC::dispatch(unsigned int i)
 {
+#ifdef __arch_armv8__
+    i = int_id();
+#endif
+
     if((i != INT_SYS_TIMER) || Traits<IC>::hysterically_debugged)
         db<IC>(TRC) << "IC::dispatch(i=" << i << ")" << endl;
 
@@ -49,6 +47,15 @@ void IC::int_not(Interrupt_Id i)
 {
     db<IC>(WRN) << "IC::int_not(i=" << i << ")" << endl;
 }
+
+#ifdef __arch_armv7__
+
+extern "C" { void _reserved() __attribute__ ((alias("_ZN4EPOS1S2IC8reservedEv"))); }
+extern "C" { void _undefined_instruction() __attribute__ ((alias("_ZN4EPOS1S2IC21undefined_instructionEv"))); }
+extern "C" { void _software_interrupt() __attribute__ ((alias("_ZN4EPOS1S2IC18software_interruptEv"))); }
+extern "C" { void _prefetch_abort() __attribute__ ((alias("_ZN4EPOS1S2IC14prefetch_abortEv"))); }
+extern "C" { void _data_abort() __attribute__ ((alias("_ZN4EPOS1S2IC10data_abortEv"))); }
+extern "C" { void _fiq() __attribute__ ((alias("_ZN4EPOS1S2IC3fiqEv"))); }
 
 void IC::entry()
 {
@@ -115,6 +122,16 @@ void IC::kill()
     db<IC>(WRN) << "The running thread will now be terminated!" << endl;
     Thread::exit(-1);
 }
+
+#else
+
+extern "C" { void _dispatch(unsigned int) __attribute__ ((alias("_ZN4EPOS1S2IC8dispatchEj"))); }
+
+void IC::entry()
+{
+}
+
+#endif    
 
 __END_SYS
 

@@ -10,9 +10,9 @@ extern "C" {
 
     // SETUP entry point is the Vector Table and resides in the .init section (not in .text), so it will be linked first and will be the first function after the ELF header in the image.
     void _entry() __attribute__ ((used, naked, section(".init")));
+    void _vector_table() __attribute__ ((naked));
     void _reset() __attribute__ ((naked)); // so it can be safely reached from the vector table
     void _setup(); // just to create a Setup object
-    void vector_table();
 
     // LD eliminates this variable while performing garbage collection, that's why the used attribute.
     char __boot_time_system_info[sizeof(EPOS::S::System_Info)] __attribute__ ((used)) = "<System_Info placeholder>"; // actual System_Info will be added by mkbi!
@@ -26,27 +26,29 @@ class Setup
 {
 private:
     // Physical memory map
-    static const unsigned int RAM_BASE          = Memory_Map::RAM_BASE;
-    static const unsigned int RAM_TOP           = Memory_Map::RAM_TOP;
-    static const unsigned int MIO_BASE          = Memory_Map::MIO_BASE;
-    static const unsigned int MIO_TOP           = Memory_Map::MIO_TOP;
-    static const unsigned int IMAGE             = Memory_Map::IMAGE;
-    static const unsigned int SETUP             = Memory_Map::SETUP;
-    static const unsigned int FLAT_PAGE_TABLE   = Memory_Map::FLAT_PAGE_TABLE;
+    static const unsigned long RAM_BASE         = Memory_Map::RAM_BASE;
+    static const unsigned long RAM_TOP          = Memory_Map::RAM_TOP;
+    static const unsigned long MIO_BASE         = Memory_Map::MIO_BASE;
+    static const unsigned long MIO_TOP          = Memory_Map::MIO_TOP;
+    static const unsigned long IMAGE            = Memory_Map::IMAGE;
+    static const unsigned long SETUP            = Memory_Map::SETUP;
+    static const unsigned long FLAT_PAGE_TABLE  = Memory_Map::FLAT_PAGE_TABLE;
 
     // Logical memory map
-    static const unsigned int APP_LOW           = Memory_Map::APP_LOW;
-    static const unsigned int PHY_MEM           = Memory_Map::PHY_MEM;
-    static const unsigned int IO                = Memory_Map::IO;
-    static const unsigned int SYS               = Memory_Map::SYS;
-    static const unsigned int SYS_INFO          = Memory_Map::SYS_INFO;
-    static const unsigned int SYS_PT            = Memory_Map::SYS_PT;
-    static const unsigned int SYS_PD            = Memory_Map::SYS_PD;
-    static const unsigned int SYS_CODE          = Memory_Map::SYS_CODE;
-    static const unsigned int SYS_DATA          = Memory_Map::SYS_DATA;
-    static const unsigned int SYS_STACK         = Memory_Map::SYS_STACK;
-    static const unsigned int APP_CODE          = Memory_Map::APP_CODE;
-    static const unsigned int APP_DATA          = Memory_Map::APP_DATA;
+    static const unsigned long APP_LOW          = Memory_Map::APP_LOW;
+    static const unsigned long PHY_MEM          = Memory_Map::PHY_MEM;
+    static const unsigned long IO               = Memory_Map::IO;
+    static const unsigned long SYS              = Memory_Map::SYS;
+    static const unsigned long SYS_INFO         = Memory_Map::SYS_INFO;
+    static const unsigned long SYS_PT           = Memory_Map::SYS_PT;
+    static const unsigned long SYS_PD           = Memory_Map::SYS_PD;
+    static const unsigned long SYS_CODE         = Memory_Map::SYS_CODE;
+    static const unsigned long SYS_DATA         = Memory_Map::SYS_DATA;
+    static const unsigned long SYS_STACK        = Memory_Map::SYS_STACK;
+    static const unsigned long SYS_HEAP         = Memory_Map::SYS_HEAP;
+    static const unsigned long SYS_HIGH         = Memory_Map::SYS_HIGH;
+    static const unsigned long APP_CODE         = Memory_Map::APP_CODE;
+    static const unsigned long APP_DATA         = Memory_Map::APP_DATA;
 
     // Architecture Imports
     typedef CPU::Reg Reg;
@@ -169,12 +171,57 @@ Setup::Setup()
 void Setup::setup_flat_paging()
 {
     db<Setup>(TRC) << "Setup::setup_flat_paging()" << endl;
+
+#ifdef __arch_armv7__
+    
     CPU::Reg * pt = reinterpret_cast<CPU::Reg *>(FLAT_PAGE_TABLE);
     for(CPU::Reg i = MMU_Common<12,0,20>::directory(RAM_BASE); i < MMU_Common<12,0,20>::directory(RAM_BASE) + MMU_Common<12,0,20>::pages(RAM_TOP - RAM_BASE); i++)
         pt[i] = (i << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_MEM;
     pt[MMU_Common<12,0,20>::directory(MIO_BASE)] = (MMU_Common<12,0,20>::directory(MIO_BASE) << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_DEV;
     for(CPU::Reg i = MMU_Common<12,0,20>::directory(MIO_BASE) + 1; i < MMU_Common<12,0,20>::directory(MIO_BASE) + MMU_Common<12,0,20>::pages(MIO_TOP - MIO_BASE); i++)
         pt[i] = (i << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_PER;
+
+#else
+
+    // Single-level mapping, 32 MB blocks
+    static const unsigned long BLOCK_SIZE       = 32 * 1024 * 1024; // 32 MB
+    static const unsigned long PD_ENTRIES       = 128; //(Math::max(RAM_TOP, MIO_TOP) - Math::min(RAM_BASE, MIO_BASE)) / 32 * 1024 * 1024; // 128 for 4GB
+
+    CPU::Reg mem = RAM_BASE;
+    CPU::Reg * pd = reinterpret_cast<CPU::Reg *>(FLAT_PAGE_TABLE);
+
+    for(unsigned int i = 0; i < PD_ENTRIES; i++, mem += BLOCK_SIZE)
+        pd[i] = reinterpret_cast<CPU::Reg>(mem) | ARMv8_MMU::Page_Flags::FLAT_MEM_BLOCK;
+
+//    // Two-level mapping, 16KB granule
+//    // To used this code, remember to adjust FLAT_PAGE_TABLE to account for all the associated page tables (e.g. (RAM_TOP - (PD_ETRIES + 1) * 16 * 1024) & ~(0x3fff)
+//    static const unsigned long PAGE_SIZE        = 16 * 1024; // 16 KB
+//    static const unsigned long PD_ENTRIES       = 128; //(Math::max(RAM_TOP, MIO_TOP) - Math::min(RAM_BASE, MIO_BASE)) / 32 * 1024 * 1024; // 128 for 4GB
+//    static const unsigned long PT_ENTRIES       = PAGE_SIZE / sizeof(long); // 2 K entries
+//    static const unsigned long PD_MASK          = ((PAGE_SIZE - 1) | (0xfUL << 52));
+//
+//    CPU::Reg mem = RAM_BASE;
+//    CPU::Reg * pts = reinterpret_cast<CPU::Reg *>(FLAT_PAGE_TABLE);
+//
+//    CPU::Reg * pd = reinterpret_cast<CPU::Reg *>(pts); // PD is the first page in pts_mem
+//    pts += PAGE_SIZE;
+//    for(unsigned int i = 0; i < PD_ENTRIES; i++, pts += PT_ENTRIES)
+//        pd[i] = reinterpret_cast<CPU::Reg>(pts) | ARMv8_MMU::Page_Flags::PAGE_DESCRIPTOR | ARMv8_MMU::Page_Flags::OUTER_SHAREABLE | ARMv8_MMU::Page_Flags::ACCESS | ARMv8_MMU::Page_Flags::EL1_XN | ARMv8_MMU::Page_Flags::XN;
+//
+//    for(unsigned int i = 0; i < PD_ENTRIES; i++) {
+//        CPU::Reg * pt = reinterpret_cast<CPU::Reg *>(pd[i] & ~PD_MASK);
+//        db<Setup>(TRC) << "PT[" << i << "]: " << hex << pt << endl;
+//        for(unsigned int j = 0; j < PT_ENTRIES; j++, mem += PAGE_SIZE)
+//            pt[j] = reinterpret_cast<CPU::Reg>(mem) | ARMv8_MMU::Page_Flags::PAGE_DESCRIPTOR | ARMv8_MMU::Page_Flags::INNER_SHAREABLE | ARMv8_MMU::Page_Flags::SEL_MAIR_ATTR0 | ARMv8_MMU::Page_Flags::ACCESS;
+//    }
+
+    CPU::mair_el1((CPU::ATTR_DEVICE_nGnRnE) << 0 * CPU::ATTR_OFFSET | // first attribute_index
+        (CPU::ATTR_NORMAL_WT) << 1 * CPU::ATTR_OFFSET | // second attribute index
+        (CPU::ATTR_NORMAL_WB) << 2 * CPU::ATTR_OFFSET | // second attribute index
+        (CPU::ATTR_NORMAL_NON_CACHE) << 3 * CPU::ATTR_OFFSET); // second attribute index
+
+#endif
+
 }
 
 void Setup::build_lm()
@@ -365,13 +412,23 @@ void Setup::build_pmm()
     // on which the application's logical and physical address spaces match.
     Phy_Addr top_page = MMU::pages(si->bm.mem_top);
 
-    // System Page Directory (4 x sizeof(Page)) -- up to 4k PD entries of 32 bits, moreover we need a page aligned to 16 KB 
-    top_page -= 4;
-    si->pmm.sys_pd = top_page * sizeof(Page);
+    if(Traits<CPU>::WORD_SIZE == 32) {
+        // System Page Directory (4 x sizeof(Page)) -- up to 4k PD entries of 32 bits, moreover we need a page aligned to 16 KB 
+        top_page -= 4;
+        si->pmm.sys_pd = top_page * sizeof(Page);
 
-    // Page tables to map the System address space
-    top_page -= 1;
-    si->pmm.sys_pt = top_page * sizeof(Page);
+        // Page tables to map the System address space
+        top_page -= 1;
+        si->pmm.sys_pt = top_page * sizeof(Page);
+    } else {
+        // System Page Directory (1 x sizeof(Page)) -- up to 2048 PD entries of 64 bits, moreover we need a page aligned to 16 KB 
+        top_page -= 1;
+        si->pmm.sys_pd = top_page * sizeof(Page);
+
+        // Page tables to map the System address space
+        top_page -= MMU::pages(SYS_HIGH + 1 - SYS);
+        si->pmm.sys_pt = top_page * sizeof(Page);
+    }
 
     // Page tables to map the whole physical memory
     // = NP/NPTE_PT * sizeof(Page)
@@ -445,19 +502,14 @@ void Setup::say_hi()
 
     kout << endl;
 
-    if(Traits<System>::multitask && !si->lm.has_app) {
-        db<Setup>(ERR) << "No APPLICATION in boot image, you don't need EPOS!" << endl;
-        panic();
-    }
-    if(!si->lm.has_sys)
-        db<Setup>(INF) << "No SYSTEM in boot image, assuming EPOS is a library!" << endl;
-
+    kout << "This is EPOS!\n" << endl;
     kout << "Setting up this machine as follows: " << endl;
     kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in" : "kernel") << endl;
-    kout << "  Processor:    " << Traits<Machine>::CPUS << " x Cortex A53 at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
-    kout << "  Memory:       " << (si->bm.mem_top - si->bm.mem_base) / 1024 << " KB [" << (void *)si->bm.mem_base << ":" << (void *)si->bm.mem_top << "]" << endl;
-    kout << "  User memory:  " << (si->pmm.usr_mem_top - si->pmm.usr_mem_base) / 1024 << " KB [" << (void *)si->pmm.usr_mem_base << ":" << (void *)si->pmm.usr_mem_top << "]" << endl;
-    kout << "  I/O space:    " << (si->bm.mio_top - si->bm.mio_base) / 1024 << " KB [" << (void *)si->bm.mio_base << ":" << (void *)si->bm.mio_top << "]" << endl;
+    kout << "  Processor:    " << Traits<Machine>::CPUS << " x Cortex A53 (ARMv" << ((Traits<CPU>::WORD_SIZE == 32) ? "7" : "8") << "-A) at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
+    kout << "  Machine:      Raspberry Pi3" << endl;
+    kout << "  Memory:       " << (si->bm.mem_top - si->bm.mem_base) / 1024 << " KB [" << reinterpret_cast<void *>(si->bm.mem_base) << ":" << reinterpret_cast<void *>(si->bm.mem_top) << "]" << endl;
+    kout << "  User memory:  " << (si->pmm.usr_mem_top - si->pmm.usr_mem_base) / 1024 << " KB [" << reinterpret_cast<void *>(si->pmm.usr_mem_base) << ":" << reinterpret_cast<void *>(si->pmm.usr_mem_top) << "]" << endl;
+    kout << "  I/O space:    " << (si->bm.mio_top - si->bm.mio_base) / 1024 << " KB [" << reinterpret_cast<void *>(si->bm.mio_base) << ":" << reinterpret_cast<void *>(si->bm.mio_top) << "]" << endl;
     kout << "  Node Id:      ";
     if(si->bm.node_id != -1)
         kout << si->bm.node_id << " (" << Traits<Build>::NODES << ")" << endl;
@@ -522,10 +574,11 @@ void Setup::setup_sys_pt()
 
     // System Page Directory -- 4 Pages for directory
     sys_pt[MMU::directory(SYS_PD - SYS) * (MMU::PT_ENTRIES) + MMU::page(SYS_PD)]   = MMU::phy2pte(si->pmm.sys_pd, Flags::SYS);
+#ifdef __arch_armv7__
     sys_pt[MMU::directory(SYS_PD - SYS) * (MMU::PT_ENTRIES) + MMU::page(SYS_PD)+1] = MMU::phy2pte(si->pmm.sys_pd + sizeof(Page), Flags::SYS);
     sys_pt[MMU::directory(SYS_PD - SYS) * (MMU::PT_ENTRIES) + MMU::page(SYS_PD)+2] = MMU::phy2pte(si->pmm.sys_pd + 2 * sizeof(Page), Flags::SYS);
     sys_pt[MMU::directory(SYS_PD - SYS) * (MMU::PT_ENTRIES) + MMU::page(SYS_PD)+3] = MMU::phy2pte(si->pmm.sys_pd + 3 * sizeof(Page), Flags::SYS);
-
+#endif
     // SYSTEM code
     setup_pt(reinterpret_cast<PT_Entry *>(&sys_pt[MMU::directory(SYS_CODE - SYS) * (MMU::PT_ENTRIES) + MMU::page(SYS_CODE)]), si->pmm.sys_code, MMU::pages(si->lm.sys_code_size), MMU::page_tables(MMU::pages(si->lm.sys_code_size)), Flags::SYS, true);
     db<Setup>(INF) << "SYS_CODE PT = " << MMU::directory(SYS_CODE - SYS) * (MMU::PT_ENTRIES) + MMU::page(SYS_CODE) << ",size=" << si->lm.sys_code_size << endl;
@@ -681,6 +734,8 @@ void Setup::enable_paging()
         db<Setup>(INF) << "sp=" << CPU::sp() << endl;
     }
 
+#ifdef __arch_armv7__
+
     // MNG_DOMAIN for no page permission verification, CLI_DOMAIN otherwise
     CPU::dacr((Traits<System>::multitask) ? CPU::CLI_DOMAIN : CPU::MNG_DOMAIN); 
 
@@ -713,6 +768,25 @@ void Setup::enable_paging()
         db<Setup>(INF) << "pc=" << CPU::pc() << endl;
         db<Setup>(INF) << "sp=" << CPU::sp() << endl;
     }
+
+#else 
+
+    // Configure paging with two levels and 16KB pages via TTBRC
+    CPU::ttbcr(CPU::TTBR1_DISABLE | CPU::TTBR0_WALK_INNER_SHAREABLE | CPU::TTBR0_WALK_OUTER_WB_WA | CPU::TTBR0_WALK_INNER_WB_WA | CPU::TTBR0_TG0_16KB | CPU::TTBR0_SIZE_4GB);
+    CPU::isb();
+
+    // Tell the MMU where our translation tables are
+    db<Setup>(INF) << "SYS_PD=" << hex << (unsigned long)((Traits<System>::multitask) ? si->pmm.sys_pd : FLAT_PAGE_TABLE) << endl;
+    CPU::ttbr0((unsigned long)((Traits<System>::multitask) ? si->pmm.sys_pd : FLAT_PAGE_TABLE));
+
+    CPU::dsb();
+    CPU::isb();
+
+    CPU::sctlr(CPU::sctlr() | CPU::MMU_ENABLE | CPU::DCACHE | CPU::ICACHE);
+    CPU::isb();
+
+    Display::init();
+#endif
 }
 
 void Setup::load_parts()
@@ -878,6 +952,8 @@ __END_SYS
 
 using namespace EPOS::S;
 
+#ifdef __arch_armv7__
+
 void _entry()
 {
     // Interrupt Vector Table
@@ -944,18 +1020,210 @@ void _reset()
         mbox->enable();
     }
 
-    _setup();
-}
-
-void _setup()
-{
-    CPU::int_disable(); // interrupts will be re-enabled at init_end
-
     CPU::fpu_enable();
     CPU::flush_caches();
     CPU::flush_branch_predictors();
     CPU::flush_tlb();
     CPU::actlr(CPU::actlr() | CPU::DCACHE_PREFETCH); // enable Dside prefetch
-    
+
+    _setup();
+}
+
+#else
+
+void _entry()
+{
+    // Manual D13.2.102 explains the cold start of an ARMv8, with RVBAR_EL3 defined by the SoC's manufaturer
+    // Broadcom uses 0 and the GPU initialized that memory region with code that end up jumping to 0x80000 (i.e. _entry)
+
+    // Set SP to avoid early faults
+    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1)); // set stack
+
+    ASM("b _reset");
+}
+
+void _vector_table()
+{
+    // Manual D1.10.2, page D1-1430 shows four configurations in terms of the exception level an exception can came from:
+    // current level with SP_EL0, current level with SP_ELx, lower level AArch64, and lower level AArch32.
+    // Additionally, there are four exception types: synchronous exception, IRQ, FIQ, and SError.
+    // Therefore, each exception level maps the four exception type handlers aligned by 128 bytes (enough room to write simple handlers).
+
+    // Our strategy is to forward all interrupts to _int_entry via
+    ASM("// Current EL with SP0                                                 \t\n\
+                        .balign 128                                             \t\n\
+        .sync_curr_sp0: str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .irq_curr_sp0:  str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .fiq_curr_sp0:  str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .error_curr_sp0:str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+        // Current EL with SPx                                                  \t\n\
+                        .balign 128                                             \t\n\
+        .sync_curr_spx: str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .irq_curr_spx:  str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .fiq_curr_spx:  str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .error_curr_spx:str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+        // Lower EL using AArch64                                               \t\n\
+                        .balign 128                                             \t\n\
+        .sync_lower64:  str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .irq_lower64:   str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .fiq_lower64:   str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .error_lower64: str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        // Lower EL using AArch32                               \t\n\
+                        .balign 128                                             \t\n\
+        .sync_lower32:  str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .irq_lower32:   str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .fiq_lower32:   str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .error_lower32: str x30, [sp,#-8]!                                      \t\n\
+                        str x29, [sp,#-8]!                                      \t\n\
+                        ldr x29, .ic_entry                                      \t\n\
+                        blr x29                                                 \t\n\
+                        ldr x30, [sp], #8                                       \t\n\
+                        eret                                                    \t\n\
+                                                                                \t\n\
+                        .balign 128                                             \t\n\
+        .ic_entry: .dword 0x0                                                   \t");
+}
+
+void _reset()
+{
+    if(CPU::id() == 0) {
+        // Relocated the vector table, which has 4 entries for each of the 4 scenarios, all 128 bytes aligned, plus an 8 bytes pointer, totaling 2056 bytes
+        CPU::Reg * src = reinterpret_cast<CPU::Reg *>(&_vector_table);
+        CPU::Reg * dst = reinterpret_cast<CPU::Reg *>(Memory_Map::VECTOR_TABLE);
+        for(int i = 0; i < (2056 / 8); i++)
+            dst[i] = src[i];
+        // Set el1 vbar
+        CPU::vbar_el1(static_cast<CPU::Phy_Addr>(Memory_Map::VECTOR_TABLE));
+
+        // Activate aarch64
+        CPU::hcr(CPU::EL1_AARCH64_EN | CPU::SWIO_HARDWIRED);
+
+        // We start at EL2, but must set EL1 SP for a smooth transition, including further exception/interrupt handling
+        CPU::spsr_el2(CPU::FLAG_D | CPU::FLAG_A | CPU::FLAG_I | CPU::FLAG_F | CPU::FLAG_EL1 | CPU::FLAG_SP_ELn);
+        CPU::Reg el1_addr = CPU::pc();
+        el1_addr += 16; // previous instruction, this instruction, and the next one;
+        CPU::elr_el2(el1_addr);
+        CPU::eret();
+        CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1)); // set stack
+
+        // Clear the BSS (SETUP was linked to CRT0, but entry point didn't go through BSS clear)
+        Machine::clear_bss();
+    } else {
+        // we want secondary cores to be held here.
+        while(true)
+            CPU::halt();
+    }
+
+    _setup();
+}
+
+#endif
+
+void _setup()
+{
+    CPU::int_disable(); // interrupts will be re-enabled at init_end
+
     Setup setup;
 }

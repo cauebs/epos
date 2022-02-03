@@ -32,31 +32,31 @@ class Setup
 {
 private:
     // Physical memory map
-    static const unsigned int RAM_BASE          = Memory_Map::RAM_BASE;
-    static const unsigned int RAM_TOP           = Memory_Map::RAM_TOP;
-    static const unsigned int APIC_PHY          = APIC::LOCAL_APIC_PHY_ADDR;
-    static const unsigned int APIC_SIZE         = APIC::LOCAL_APIC_SIZE;
-    static const unsigned int IO_APIC_PHY       = APIC::IO_APIC_PHY_ADDR;
-    static const unsigned int IO_APIC_SIZE      = APIC::IO_APIC_SIZE;
-    static const unsigned int VGA_PHY           = VGA::FB_PHY_ADDR;
-    static const unsigned int VGA_SIZE          = VGA::FB_SIZE;
+    static const unsigned long RAM_BASE         = Memory_Map::RAM_BASE;
+    static const unsigned long RAM_TOP          = Memory_Map::RAM_TOP;
+    static const unsigned long APIC_PHY         = APIC::LOCAL_APIC_PHY_ADDR;
+    static const unsigned long APIC_SIZE        = APIC::LOCAL_APIC_SIZE;
+    static const unsigned long IO_APIC_PHY      = APIC::IO_APIC_PHY_ADDR;
+    static const unsigned long IO_APIC_SIZE     = APIC::IO_APIC_SIZE;
+    static const unsigned long VGA_PHY          = VGA::FB_PHY_ADDR;
+    static const unsigned long VGA_SIZE         = VGA::FB_SIZE;
 
     // Logical memory map
-    static const unsigned int IDT       = Memory_Map::IDT;
-    static const unsigned int GDT       = Memory_Map::GDT;
-    static const unsigned int TSS0      = Memory_Map::TSS0;
-    static const unsigned int APP_LOW   = Memory_Map::APP_LOW;
-    static const unsigned int PHY_MEM   = Memory_Map::PHY_MEM;
-    static const unsigned int IO        = Memory_Map::IO;
-    static const unsigned int SYS       = Memory_Map::SYS;
-    static const unsigned int SYS_INFO  = Memory_Map::SYS_INFO;
-    static const unsigned int SYS_PT    = Memory_Map::SYS_PT;
-    static const unsigned int SYS_PD    = Memory_Map::SYS_PD;
-    static const unsigned int SYS_CODE  = Memory_Map::SYS_CODE;
-    static const unsigned int SYS_DATA  = Memory_Map::SYS_DATA;
-    static const unsigned int SYS_STACK = Memory_Map::SYS_STACK;
-    static const unsigned int APP_CODE  = Memory_Map::APP_CODE;
-    static const unsigned int APP_DATA  = Memory_Map::APP_DATA;
+    static const unsigned long IDT              = Memory_Map::IDT;
+    static const unsigned long GDT              = Memory_Map::GDT;
+    static const unsigned long TSS0             = Memory_Map::TSS0;
+    static const unsigned long APP_LOW          = Memory_Map::APP_LOW;
+    static const unsigned long PHY_MEM          = Memory_Map::PHY_MEM;
+    static const unsigned long IO               = Memory_Map::IO;
+    static const unsigned long SYS              = Memory_Map::SYS;
+    static const unsigned long SYS_INFO         = Memory_Map::SYS_INFO;
+    static const unsigned long SYS_PT           = Memory_Map::SYS_PT;
+    static const unsigned long SYS_PD           = Memory_Map::SYS_PD;
+    static const unsigned long SYS_CODE         = Memory_Map::SYS_CODE;
+    static const unsigned long SYS_DATA         = Memory_Map::SYS_DATA;
+    static const unsigned long SYS_STACK        = Memory_Map::SYS_STACK;
+    static const unsigned long APP_CODE         = Memory_Map::APP_CODE;
+    static const unsigned long APP_DATA         = Memory_Map::APP_DATA;
 
     // Architecture Imports
     typedef CPU::Reg Reg;
@@ -93,8 +93,8 @@ private:
     void adjust_perms();
     void call_next();
 
-    void detect_memory(unsigned int * base, unsigned int * top);
-    void detect_pci(unsigned int * base, unsigned int * top);
+    void detect_memory(unsigned long * base, unsigned long * top);
+    void detect_pci(unsigned long * base, unsigned long * top);
     void calibrate_timers();
 
     static void panic() { Machine::panic(); }
@@ -130,7 +130,7 @@ Setup::Setup(char * boot_image)
         i8259A::reset();
 
         // Detect RAM
-        unsigned int memb, memt;
+        unsigned long memb, memt;
         detect_memory(&memb, &memt);
 
         // Calibrate timers
@@ -972,12 +972,12 @@ void Setup::call_next()
 }
 
 
-void Setup::detect_memory(unsigned int * base, unsigned int * top)
+void Setup::detect_memory(unsigned long * base, unsigned long * top)
 {
     db<Setup>(TRC) << "Setup::detect_memory()" << endl;
 
     unsigned int i;
-    unsigned int * mem = reinterpret_cast<unsigned int *>(RAM_BASE / sizeof(int));
+    unsigned long * mem = reinterpret_cast<unsigned long *>(RAM_BASE / sizeof(long));
     for(i = Traits<Machine>::INIT; i < RAM_TOP; i += 16 * sizeof(MMU::Page))
         mem[i /  sizeof(int)] = i;
 
@@ -994,7 +994,7 @@ void Setup::detect_memory(unsigned int * base, unsigned int * top)
 }
 
 
-void Setup::detect_pci(unsigned int * base, unsigned int * top)
+void Setup::detect_pci(unsigned long * base, unsigned long * top)
 {
     db<Setup>(TRC) << "Setup::detect_pci()" << endl;
 

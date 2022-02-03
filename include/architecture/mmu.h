@@ -21,9 +21,9 @@ protected:
     typedef CPU::Phy_Addr Phy_Addr;
 
     // Page constants
-    static const unsigned int PAGE_SHIFT = OFFSET_BITS;
-    static const unsigned int PAGE_SIZE = 1 << PAGE_SHIFT;
-    static const unsigned int DIRECTORY_SHIFT = OFFSET_BITS + PAGE_BITS;
+    static const unsigned long PAGE_SHIFT = OFFSET_BITS;
+    static const unsigned long PAGE_SIZE = 1 << PAGE_SHIFT;
+    static const unsigned long DIRECTORY_SHIFT = OFFSET_BITS + PAGE_BITS;
 
 public:
     // Memory page
@@ -72,14 +72,14 @@ public:
     static const unsigned int PD_ENTRIES = 1 << DIRECTORY_BITS;
 
 public:
-    constexpr static unsigned int pages(unsigned int bytes) { return (bytes + sizeof(Page) - 1) / sizeof(Page); }
-    constexpr static unsigned int page_tables(unsigned int pages) { return sizeof(Page) > sizeof(int) ? (pages + PT_ENTRIES - 1) / PT_ENTRIES : 0; }
+    constexpr static unsigned long pages(unsigned long bytes) { return (bytes + sizeof(Page) - 1) / sizeof(Page); }
+    constexpr static unsigned long page_tables(unsigned long pages) { return sizeof(Page) > sizeof(long) ? (pages + PT_ENTRIES - 1) / PT_ENTRIES : 0; }
 
-    constexpr static unsigned int offset(const Log_Addr & addr) { return addr & (sizeof(Page) - 1); }
-    constexpr static unsigned int indexes(const Log_Addr & addr) { return addr & ~(sizeof(Page) - 1); }
+    constexpr static unsigned long offset(const Log_Addr & addr) { return addr & (sizeof(Page) - 1); }
+    constexpr static unsigned long indexes(const Log_Addr & addr) { return addr & ~(sizeof(Page) - 1); }
 
-    constexpr static unsigned int page(const Log_Addr & addr) { return (addr >> PAGE_SHIFT) & (PT_ENTRIES - 1); }
-    constexpr static unsigned int directory(const Log_Addr & addr) { return addr >> DIRECTORY_SHIFT; }
+    constexpr static unsigned long page(const Log_Addr & addr) { return (addr >> PAGE_SHIFT) & (PT_ENTRIES - 1); }
+    constexpr static unsigned long directory(const Log_Addr & addr) { return addr >> DIRECTORY_SHIFT; }
 
     constexpr static Log_Addr align_page(const Log_Addr & addr) { return (addr + sizeof(Page) - 1) & ~(sizeof(Page) - 1); }
     constexpr static Log_Addr align_directory(const Log_Addr & addr) { return (addr + PT_ENTRIES * sizeof(Page) - 1) &  ~(PT_ENTRIES * sizeof(Page) - 1); }

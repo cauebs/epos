@@ -19,8 +19,13 @@ void No_MMU::init()
     // Allocations (using Grouping_List<Frame>::search_decrementing() start from the end
     // To preserve the BOOT stacks until the end of INIT, the free memory list initialization is split in two sections
     // with allocations (from the end) of the first section taking place first
+#ifdef __cortex_a53__
+    free(&_end, pages(Memory_Map::FLAT_PAGE_TABLE - Traits<Machine>::STACK_SIZE * Traits<Machine>::CPUS - reinterpret_cast<unsigned long>(&_end)));
+    free(Memory_Map::FLAT_PAGE_TABLE - Traits<Machine>::STACK_SIZE * Traits<Machine>::CPUS, pages(Traits<Machine>::STACK_SIZE * Traits<Machine>::CPUS));
+#else
     free(&_end, pages(Memory_Map::RAM_TOP + 1 - Traits<Machine>::STACK_SIZE * Traits<Machine>::CPUS - reinterpret_cast<unsigned long>(&_end)));
     free(Memory_Map::RAM_TOP + 1 - Traits<Machine>::STACK_SIZE * Traits<Machine>::CPUS, pages(Traits<Machine>::STACK_SIZE * Traits<Machine>::CPUS));
+#endif
 }
 
 __END_SYS

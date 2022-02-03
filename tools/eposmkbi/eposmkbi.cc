@@ -204,7 +204,7 @@ int main(int argc, char **argv)
             image_size += pad(fd_img, MAX_SI_LEN);
         } else {
             fprintf(out, " failed!\n");
-            fprintf(err, "System_Info structure is too large (%d)!\n", sizeof(System_Info));
+            fprintf(err, "System_Info structure is too large (%ld)!\n", static_cast<unsigned long>(sizeof(System_Info)));
             return 1;
         }
     }
@@ -605,7 +605,7 @@ bool add_machine_secrets(int fd, unsigned int i_size, char * mach, char * mmod)
         //char key_string[] = ":020000040027D3\r\n:0CFFD400FFFFFFF700000000000020000D\r\n:00000001FF\r\n"; // Bootloader Enabled, enter by setting pin PA7 to low
         //char key_string[] = ":020000040027D3\r\n:0CFFD400FFFFFFFF000000000000200005\r\n:00000001FF\r\n"; // Bootloader Enabled, enter by setting pin PA7 to high
         char key_string[] = ":020000040027D3\r\n:0CFFD400FFFFFFEF000000000000200015\r\n:00000001FF\r\n"; // Bootloader Disabled
-        const int key_offset = -strlen(":00000001FF\r\n");
+        const long key_offset = -strlen(":00000001FF\r\n");
 
         // Write key string to unlock EPOS
         if(lseek(fd,key_offset,SEEK_END) < 0) {

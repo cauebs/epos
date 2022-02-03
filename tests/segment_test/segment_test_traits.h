@@ -9,8 +9,8 @@ __BEGIN_SYS
 template<> struct Traits<Build>: public Traits_Tokens
 {
     // Basic configuration
-    static const unsigned int MODE = LIBRARY;
-    static const unsigned int ARCHITECTURE = ARMv7;
+    static const unsigned int MODE = BUILTIN;
+    static const unsigned int ARCHITECTURE = ARMv8;
     static const unsigned int MACHINE = Cortex;
     static const unsigned int MODEL = Raspberry_Pi3;
     static const unsigned int CPUS = 1;
