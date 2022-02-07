@@ -74,9 +74,9 @@ public:
             IO                  = (nG | RW_USR | DEV | PTE),                            // Device Memory = Shareable, RWX, SYS
             DMA                 = (nG | RO_SYS | DEV | PTE),                            // Device Memory no cacheable / Old Peripheral = Shareable, RWX, B ?
 
-            PT_MASK             = (1 << 14) - 1,
+            PT_MASK             = ((PAGE_SIZE - 1) | (0xfUL << 52)),
             PD_FLAGS            = (PAGE_DESCRIPTOR | XN | EL1_XN),
-            PD_MASK             = (1 << 14) -1
+            PD_MASK             = ((PAGE_SIZE - 1) | (0xfUL << 52))
         };
     public:
         Page_Flags() {}
