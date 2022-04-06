@@ -84,17 +84,18 @@ class IC: private IC_Common, private CLINT
 private:
     typedef CPU::Reg Reg;
 
-    static const unsigned int INTS = CPU::EXCEPTIONS + IRQS;
     static const bool multitask = Traits<System>::multitask;
 
 public:
+    static const unsigned int EXCS = CPU::EXCEPTIONS;
+    static const unsigned int IRQS = CLINT::IRQS;
+    static const unsigned int INTS = EXCS + IRQS;
+
     using IC_Common::Interrupt_Id;
     using IC_Common::Interrupt_Handler;
 
     enum {
-        HARD_INT        = CPU::EXCEPTIONS,
-        INT_SYS_TIMER   = HARD_INT + (multitask ? IRQ_SUP_TIMER : IRQ_MAC_TIMER),
-        INT_RESCHEDULER = HARD_INT + (multitask ? IRQ_SUP_SOFT : IRQ_MAC_SOFT),  // an IPI is mapped to the machine with mcause set to IRQ_MAC_SOFT
+        INT_SYS_TIMER   = EXCS + (multitask ? IRQ_SUP_TIMER : IRQ_MAC_TIMER)
     };
 
 public:
@@ -145,14 +146,13 @@ public:
         // Id is retrieved from [m|s]cause even if mip has the equivalent bit up, because only [m|s]cause can tell if it is an interrupt or an exception
         Reg id = (multitask) ? CPU::scause() : CPU::mcause();
         if(id & INTERRUPT)
-            return (id & INT_MASK) + HARD_INT;
+            return (id & INT_MASK) + EXCS;
         else
             return (id & INT_MASK);
     }
 
-    static int irq2int(int i) { return i + HARD_INT; }
-
-    static int int2irq(int i) { return i - HARD_INT; }
+    static int irq2int(int i) { return i + EXCS; }
+    static int int2irq(int i) { return i - EXCS; }
 
     static void ipi(unsigned int cpu, Interrupt_Id i) {
         db<IC>(TRC) << "IC::ipi(cpu=" << cpu << ",int=" << i << ")" << endl;

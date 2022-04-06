@@ -10,8 +10,6 @@ volatile unsigned int Raspberry_Pi3::_cores;
 
 void Raspberry_Pi3::reboot()
 {
-    db<Machine>(WRN) << "Machine::reboot()" << endl;
-
     Reg32 * PM_RSTC = reinterpret_cast<Reg32 *>(Memory_Map::PM_BASE + 0x1c);
     Reg32 * PM_WDOG = reinterpret_cast<Reg32 *>(Memory_Map::PM_BASE + 0x24);
     const int PM_PASSWORD = 0x5a000000;

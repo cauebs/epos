@@ -12,35 +12,32 @@ template<> struct Traits<Machine_Common>: public Traits<Build> {};
 
 template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
-    static const bool cpus_use_local_timer      = false;
-
     static const unsigned int NOT_USED          = 0xffffffff;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
 
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x00000000;
-    static const unsigned int RAM_TOP           = 0x10000000; 	// 256 MB (max 1792 MB)
+    static const unsigned int RAM_TOP           = 0x40000000; 	// 1 GB (max 1792 MB)
     static const unsigned int MIO_BASE          = NOT_USED;	// defined by SETUP during PCI initialization (max 244 MB)
     static const unsigned int MIO_TOP           = NOT_USED;	// defined by SETUP
 
     // Physical Memory at Boot
     static const unsigned int BOOT              = 0x00007c00;
-    static const unsigned int BOOT_STACK        = NOT_USED;     // defined by BOOT and by SETUP
     static const unsigned int IMAGE             = 0x00008000;
     static const unsigned int SETUP             = 0x00100000;   // 1 MB
     static const unsigned int RAMDISK           = 0x0fa28000;   // MEMDISK-dependent
     static const unsigned int RAMDISK_SIZE      = 0x003c0000;
 
     // Logical Memory Map
-    static const unsigned int APP_LOW           = 0x00000000;
-    static const unsigned int APP_HIGH          = 0xefffffff;   // IO - 1
+    static const unsigned int APP_LOW           = 0x80000000;   // 2 GB
+    static const unsigned int APP_HIGH          = 0xff7fffff;   // SYS - 1
 
     static const unsigned int APP_CODE          = APP_LOW;
     static const unsigned int APP_DATA          = APP_CODE + 4 * 1024 * 1024;
 
     static const unsigned int INIT              = 0x00200000;   // 2 MB (only used during boot)
-    static const unsigned int PHY_MEM           = 0x80000000; 	// 2 GB (max 1792 MB)
-    static const unsigned int IO                = 0xf0000000; 	// 4 GB - 256 MB  (max 244 MB)
+    static const unsigned int PHY_MEM           = 0x00000000; 	// (max 1792 MB)
+    static const unsigned int IO                = 0x70000000; 	// 2 GB - 256 MB  (max 244 MB)
     static const unsigned int SYS               = 0xff800000;   // 4 GB - 8 MB
 
     // Default Sizes and Quantities

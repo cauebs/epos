@@ -877,19 +877,3 @@ void _int_m2s()
         "        mret                                                   \n");
 }
 
-void _int_wfi()
-{
-    // Save context
-    ASM("        addi        sp,     sp,    -8                          \n"
-        "        sw          a4,   0(sp)                                \n"
-        "        sw          a5,   4(sp)                                \n");
-
-    IC::ipi_eoi(IC::INT_RESCHEDULER);
-    CPU::sipc(CPU::SSI);
-
-    // Restore context
-    ASM("        lw          a4,   0(sp)                                \n"
-        "        lw          a5,   4(sp)                                \n"
-        "        addi        sp,     sp,     8                          \n"
-        "        sret                                                   \n");
-}

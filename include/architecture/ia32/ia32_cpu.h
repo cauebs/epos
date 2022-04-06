@@ -374,9 +374,6 @@ public:
 
     static void switch_context(Context * volatile * o, Context * volatile n);
 
-    static void syscall(void * message);
-    static void syscalled();
-
     template<typename T>
     static T tsl(volatile T & lock) {
         register T old = 1;
@@ -405,6 +402,10 @@ public:
     }
 
     static void smp_barrier(unsigned long cores = cores()) { CPU_Common::smp_barrier<&finc>(cores, id()); }
+
+    // MMU operations
+    static Reg  pd() { return cr3(); }
+    static void pd(Reg r) { cr3(r); }
 
     static void flush_tlb() { ASM("movl %cr3, %eax"); ASM("movl %eax, %cr3"); }
     static void flush_tlb(Reg32 r) { ASM("invlpg %0" : : "m"(r)); }
@@ -444,17 +445,6 @@ public:
         sp -= sizeof(Context);
         return new (sp) Context(usp, entry);
     }
-    template<typename ... Tn>
-    static Log_Addr init_user_stack(Log_Addr sp, void (* exit)(), Tn ... an) {
-        // IA32 first decrements the stack pointer and then writes into the stack
-        sp -= SIZEOF<Tn ... >::Result;
-        init_stack_helper(sp, an ...);
-        if(exit) {
-            sp -= sizeof(int *);
-            *static_cast<int *>(sp) = Log_Addr(exit);
-        }
-        return sp;
-    }
 
 public:
     // IA32 specifics
@@ -468,7 +458,7 @@ public:
     static void eax(Reg32 r) {    ASM("movl %0, %%eax" : : "r"(r)); }
 
     static Reg32 ecx() { Reg32 r; ASM("movl %%ecx,%0"  : "=r"(r) :); return r; }
-    static void eac(Reg32 r) {    ASM("movl %0, %%ecx" : : "r"(r)); }
+    static void ecx(Reg32 r) {    ASM("movl %0, %%ecx" : : "r"(r)); }
 
     static Log_Addr eip() {
         Log_Addr value;

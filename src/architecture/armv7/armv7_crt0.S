@@ -7,17 +7,11 @@
         .type   _start, function
 _start:
 
+        // Temporary stack(s) for INIT were created and configured by SETUP
 #ifdef __cortex_m__
-        // Allocate a temporary stack for INIT, since we don't have a proper SETUP for Cortex-M
-        ldr     r0, =__boot_stack__
-        mov     sp, r0
-
         // Clear the BSS
         bl      _clear_bss
-#endif
-
-#ifdef __cortex_a__
-        // Temporary stack(s) for INIT were created and configure by SETUP
+#else
         // BSS was cleared by SETUP
 #endif
 

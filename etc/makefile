@@ -16,10 +16,10 @@ config: $(INCLUDE)/system/config.h
 		sed -e 's/^#define MACH.*$$/#define MACH $(MACH)/' -i $(INCLUDE)/system/config.h
 		sed -e 's/^#define MMOD.*$$/#define MMOD $(MMOD)/' -i $(INCLUDE)/system/config.h
 		sed -e 's/^#define APPL.*$$/#define APPL $(APPLICATION)/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __mode_.*__$$/#define __mode_$(SMOD)__/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __arch_.*__$$/#define __arch_$(ARCH)__/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __mach_.*__$$/#define __mach_$(MACH)__/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __mmod_.*__$$/#define __mmod_$(MMOD)__/' -i $(INCLUDE)/system/config.h
+		sed -e 's/^#define __mode_.*__$$/#define __$(SMOD)__/' -i $(INCLUDE)/system/config.h
+		sed -e 's/^#define __arch_.*__$$/#define __$(ARCH)__/' -i $(INCLUDE)/system/config.h
+		sed -e 's/^#define __mach_.*__$$/#define __$(MACH)__/' -i $(INCLUDE)/system/config.h
+		sed -e 's/^#define __mmod_.*__$$/#define __$(MMOD)__/' -i $(INCLUDE)/system/config.h
 	  		
 eposcc.conf: FORCE
 		@echo "SMOD=$(shell $(BIN)/eposcfg MODE)" > $@
@@ -53,15 +53,8 @@ eposmkbi.conf:	FORCE
 		@echo "UUID=$(UUID)" >> $@
 
 clean: $(APP)/$(APPLICATION)/$(APPLICATION)_traits.h
-		sed -e 's/^#define SMOD.*$$/#define SMOD xxx/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define ARCH.*$$/#define ARCH xxx/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define MACH.*$$/#define MACH xxx/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define MMOD.*$$/#define MMOD xxx/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define APPL.*$$/#define APPL xxx/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __mode_.*__$$/#define __mode_xxx__/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __arch_.*__$$/#define __arch_xxx__/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __mach_.*__$$/#define __mach_xxx__/' -i $(INCLUDE)/system/config.h
-		sed -e 's/^#define __mmod_.*__$$/#define __mmod_xxx__/' -i $(INCLUDE)/system/config.h
+		sed -e '/^#define SMOD.*$$/{:1;/^#define.*APPL.*$$/!{N;N;N;N;N;N;N;N;b 1}' \
+		        -e 's/.*/#define SMOD xxx\n#define ARCH xxx\n#define MACH xxx\n#define MMOD xxx\n#define APPL xxx\n#define __mode_xxx__\n#define __arch_xxx__\n#define __mach_xxx__\n#define __mmod_xxx__/g}' -i $(INCLUDE)/system/config.h
 		$(CLEAN) *.conf
 
 FORCE:

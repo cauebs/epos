@@ -28,7 +28,6 @@ public:
     Physical_Memory_Map pmm;
     Kernel_Load_Map lm;
     Time_Map tm;
-    volatile int cpu_status[Traits<Machine>::CPUS]; // CPUs initialization status
 };
 
 __END_SYS

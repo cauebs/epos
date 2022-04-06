@@ -17,7 +17,6 @@ class ARMv8_M;
 class ARMv8_A: public ARMv7_A
 {
 public:
-
     // HCR bits
     enum {
         EL1_AARCH64_EN      = 1 << 31,
@@ -36,6 +35,15 @@ public:
         FLAG_I          = 1 << 7,               // IRQ disable
         FLAG_A          = 1 << 8,               // Imprecise Abort disable
         FLAG_D          = 1 << 9,               // Debug exception disable
+        FLAG_IL         = 1 << 20,              // Illegal execution state
+        FLAG_SS         = 1 << 21,              // Software step
+        FLAG_V          = 1 << 28,              // Overflow bit
+        FLAG_C          = 1 << 29,              // Carry out bit
+        FLAG_Z          = 1 << 30,              // Zero result bit
+        FLAG_N          = 1 << 31,              // Negative result bit
+        NZCV_MASK       = 0xf << 28,            // NZCV mask bits
+        CURRENT_EL_MASK = 0x3 << 2,             // Current_EL mask bits
+        DAIF_MASK       = 0xf << 6,             // DAIF mask bits
     };
 
     // id_aa64mmfr0 bits
@@ -134,12 +142,39 @@ public:
         TTBR1_TBI                   = 0b1ULL    << 38 // ignore top byte when calculating address on TTBR1
     };
 
+    // ESR_ELx bits
+    enum {
+        EC_OFFSET                   = 26,
+        EC_MASK                     = 0x3f,
+
+        // Exception classes
+        EXC_UNKNOWN                 = 0x0,
+        EXC_SVC_32                  = 0x11,
+        EXC_HVC_32                  = 0x12,
+        EXC_SMC_32                  = 0x13,
+        EXC_SVC_64                  = 0x15,
+        EXC_HVC_64                  = 0x16,
+        EXC_SMC_64                  = 0x17,
+        EXC_SVC                     = (EXC_SVC_32 | EXC_SVC_64),
+        EXC_HVC                     = (EXC_HVC_32 | EXC_HVC_64),
+        EXC_SMC                     = (EXC_SMC_32 | EXC_SMC_64),
+        EXC_SOFTWARE_INTERRUPT      = (EXC_SVC | EXC_HVC | EXC_SMC),
+        EXC_PREFETCH_ABORT_LOWER    = 0x20,
+        EXC_PREFETCH_ABORT_SAME     = 0x21,
+        EXC_PREFETCH_ABORT          = (EXC_PREFETCH_ABORT_SAME | EXC_PREFETCH_ABORT_LOWER),
+        EXC_DATA_ABORT_LOWER_EL     = 0x24,
+        EXC_DATA_ABORT_SAME_EL      = 0x25,
+        EXC_DATA_ABORT              = (EXC_DATA_ABORT_SAME_EL | EXC_DATA_ABORT_LOWER_EL)
+    };
+
+    static const unsigned int EXCEPTIONS =  64; // 2^6 (bits 26 to 31 of ESR_EL1)
+
 public:
     class Context
     {
     public:
         Context(){}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): _flags(FLAG_SP_ELn | FLAG_EL1 | FLAG_A | FLAG_D), _lr(exit), _pc(entry) {
+        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): _pstate(FLAG_SP_ELn | FLAG_EL1 | FLAG_A | FLAG_D), _lr(exit), _pc(entry) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
                 _x0 = 0; _x1 = 1; _x2 = 2; _x3 = 3; _x4 = 4; _x5 = 5; _x6 = 6; _x7 = 7; _x8 = 8; _x9 = 9; _x10 = 10; _x11 = 11; _x12 = 12; _x13 = 13; _x14 = 14; _x15 = 15;
                 _x16 = 16; _x17 = 17; _x18 = 18; _x19 = 19; _x20 = 20; _x21 = 21; _x22 = 22; _x23 = 23; _x24 = 24; _x25 = 25; _x26 = 26; _x27 = 27; _x28 = 28; _x29 = 29;
@@ -184,12 +219,12 @@ public:
                << ",sp="  << &c
                << ",lr="  << c._lr
                << ",pc="  << c._pc
-               << ",psr=" << c._flags
+               << ",ps="  << c._pstate
                << "}" << dec;
             return os;
         }
     public:
-        Reg _flags;
+        Reg _pstate;
         Reg _x0;
         Reg _x1;
         Reg _x2;
@@ -259,9 +294,7 @@ public:
         return id & 0x3;
     }
 
-    static unsigned int cores() {
-        return Traits<Build>::CPUS;
-    }
+    static unsigned int cores() { return Traits<Build>::CPUS; }
 
     static void smp_barrier(unsigned int cores = ARMv8_A::cores());
 
@@ -287,21 +320,53 @@ public:
     static Reg  cpsrc() { Reg r; ASM("mrs %0, daif" : "=r"(r) :); return r; }
     static void cpsrc(Reg r) {   ASM("msr daif, %0" : "=r"(r) :); }
 
-    static void psr_to_tmp() { ASM("mrs x16, spsr_el1" : :); }          // x16 and x17 are the intra-procedure-call temporary registers
-    static void tmp_to_psr() { ASM("msr spsr_el1, x16" : : : "cc"); }
+    static Reg esr_el1() { Reg r; ASM("mrs %0, esr_el1" : "=r"(r) :); return r; }
 
-    static void iret() { ASM(".ret: br lr"); }
+    // x16 and x17 are the intra-procedure-call temporary registers
+    static void pstate_to_tmp() {
+        ASM("   mrs  x17, daif          \t\n\
+                mrs  x16, nzcv          \t\n\
+                orr  x16, x17, x16      \t\n\
+                mrs  x17, CurrentEL     \t\n\
+                orr  x16, x17, x16      \t\n\
+                mrs  x17, SPSel         \t\n\
+                orr  x16, x17, x16      \t" : :);
+    }
+
+    static void tmp_to_pstate() {
+        ASM("   mov x17, #(0xf << 28)   \t\n\
+                and x17, x16, x17       \t\n\
+                msr nzcv, x17           \t\n\
+                mov x17, #(0xf << 6)    \t\n\
+                and x17, x16, x17       \t\n\
+                msr daif, x17           \t\n\
+                mov x17, #0x1           \t\n\
+                and x17, x16, x17       \t\n\
+                msr SPSel, x17          \t\n\
+                mov x17, #(0x3 << 2)    \t\n\
+                and x17, x16, x17       \t\n\
+                msr CurrentEL, x17      \t" : : : "cc");
+    }
+
+     static Reg pstate() {
+         Reg r;
+         pstate_to_tmp();
+         ASM("mov %0, x16" : "=r"(r) :);
+        return r;
+    }
+
+    static void pstate(Reg r) {
+        ASM("mov x16, %0" : : "r"(r));
+        tmp_to_pstate();
+    }
+
+    static void iret() { ASM("1: br lr"); }
 
     static void mode(unsigned int m) { ASM("msr currentel, %0" : : "r"(m) : "cc"); }
 
-    static void svc_enter(unsigned int from, bool ret = true) {}
-
-    static void svc_leave() {}
-
+    static void svc_enter(unsigned int from, bool ret = true) { Context::push(true); }
+    static void svc_leave() { Context::pop(true); }
     static void svc_stay() {}
-
-    static void ldmia() {}
-    static void stmia() {}
 
     static void dsb() { ASM("dsb ish"); }
 
@@ -347,10 +412,10 @@ public:
 
     // MMU operations
     static Reg  pd() { return ttbr0(); }
-    static void pd(Reg r) {  ttbr0(r); }
+    static void pd(Reg r) { ttbr0(r); }
 
-    static void flush_tlb();
-    static void flush_tlb(Reg r);
+    static void flush_tlb() { ASM("tlbi vmalle1"); ASM("dsb ish"); isb(); }
+    static void flush_tlb(Reg r) { ASM("dsb ishst"); ASM("tlbi vaae1, %0" : : "r"(r)); } // DC CVAU, (addr); DSB ISH; for multicore
 
     static void flush_branch_predictors();
 
@@ -360,15 +425,17 @@ public:
 
 inline void ARMv8_A::Context::push(bool interrupt)
 {
+if(interrupt)
+    ASM("       str   x30, [sp, #-8]!           // push LR                      \t");
+else {
     ASM("       str   x30, [sp, #-8]!           // make room for PC             \t\n\
                 str   x30, [sp, #-8]!           // push LR                      \t\n\
-                adr   x30, .ret                 // calculate PC                 \t\n\
+                adr   x30, 1f                   // calculate PC                 \t\n\
                 str   x30, [sp, #8]             // save PC                      \t\n\
-                ldr   x30, [sp, #0]                                             \t\n\
-                stp   x28, x29, [sp, #-16]!                                     \t\n\
-                mrs   x30, daif                                                 \t\n\
-                mov   x29, #960                                                 \t\n\
-                msr  daif, x29                                                  \t\n\
+                ldr   x30, [sp, #0]                                             \t");
+}
+
+    ASM("       stp   x28, x29, [sp, #-16]!                                     \t\n\
                 stp   x26, x27, [sp, #-16]!                                     \t\n\
                 stp   x24, x25, [sp, #-16]!                                     \t\n\
                 stp   x22, x23, [sp, #-16]!                                     \t\n\
@@ -382,21 +449,32 @@ inline void ARMv8_A::Context::push(bool interrupt)
                 stp    x6,  x7, [sp, #-16]!                                     \t\n\
                 stp    x4,  x5, [sp, #-16]!                                     \t\n\
                 stp    x2,  x3, [sp, #-16]!                                     \t\n\
-                stp    x0,  x1, [sp, #-16]!                                     \t\n\
-                orr   x17, x30, x30                                             \t\n\
-                mrs   x16, nzcv                                                 \t\n\
-                orr   x17, x17, x16                                             \t\n\
-                mrs   x16, CurrentEL                                            \t\n\
-                orr   x17, x17, x16                                             \t\n\
-                mrs   x16, SPSel                                                \t\n\
-                orr   x17, x17, x16                                             \t\n\
-                str   x17, [sp, #-8]!           // push PSR                     \t" : : : "cc");
+                stp    x0,  x1, [sp, #-16]!                                     \t");
+
+if(interrupt)
+    ASM("       mrs    x0, elr_el1                                              \t\n\
+                str    x0, [sp,#-8]!                                            \t\n\
+                mrs    x1, spsr_el1                                             \t\n\
+                str    x1, [sp,#-8]!                                            \t\n\
+                ldr    x0, [sp,#16]                                             \t\n\
+                ldr    x1, [sp,#24]                                             \t");
+else {
+    pstate_to_tmp();
+    ASM("       str x16, [sp, #-8]!                                             \t");
+}
 }
 
 inline void ARMv8_A::Context::pop(bool interrupt)
 {
-    ASM("       ldr   x30, [sp], #8             // pop PSR into x30             \t\n\
-                ldp    x0,  x1, [sp], #16                                       \t\n\
+if(interrupt) {
+    ASM("       ldr    x0, [sp], #8                                             \t\n\
+                msr    spsr_el1, x0                                             \t\n\
+                ldr    x0, [sp], #8                                             \t\n\
+                msr    elr_el1, x0                                              \t");
+} else
+    ASM("       ldr   x30, [sp], #8             // pop PSTATE into x30          \t" : : : "cc");
+
+    ASM("       ldp    x0,  x1, [sp], #16                                       \t\n\
                 ldp    x2,  x3, [sp], #16                                       \t\n\
                 ldp    x4,  x5, [sp], #16                                       \t\n\
                 ldp    x6,  x7, [sp], #16                                       \t\n\
@@ -410,13 +488,18 @@ inline void ARMv8_A::Context::pop(bool interrupt)
                 ldp   x22, x23, [sp], #16                                       \t\n\
                 ldp   x24, x25, [sp], #16                                       \t\n\
                 ldp   x26, x27, [sp], #16                                       \t\n\
-                ldp   x28, x29, [sp], #16                                       \t\n\
-                msr   spsr_el1, x30                                             \t\n\
+                ldp   x28, x29, [sp], #16                                       \t");
+
+if(interrupt)
+    ASM("       ldr   x30, [sp], #8             // pop PSTATE into x30         \t");
+else {
+    ASM("       msr   spsr_el1, x30                                             \t\n\
                 ldr   x30, [sp], #8             // pop LR to get to PC          \t\n\
                 ldr   x30, [sp], #8             // pop PC                       \t\n\
                 msr   ELR_EL1, x30                                              \t\n\
                 ldr   x30, [sp, #-16]           // pop LR                       \t\n\
                 eret                                                            \t" : : : "cc");
+}
 }
 
 class CPU: public ARMv8_A
@@ -433,8 +516,8 @@ public:
         Context() {}
         Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): Base::Context(entry, exit, 0) {}
 
-        void save() volatile;
-        void load() const volatile;
+        void save() volatile __attribute__ ((naked));
+        void load() const volatile __attribute__ ((naked));
     };
 
 public:
@@ -480,13 +563,6 @@ public:
         init_stack_helper(&ctx->_x0, an ...);
         return ctx;
     }
-
-    // In ARMv8, the main thread of each task gets parameters over registers, not the stack, and they are initialized by init_stack.
-    template<typename ... Tn>
-    static Log_Addr init_user_stack(Log_Addr usp, void (* exit)(), Tn ... an) { return usp; }
-
-    static void syscall(void * message);
-    static void syscalled();
 
     using CPU_Common::htole64;
     using CPU_Common::htole32;

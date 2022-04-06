@@ -9,8 +9,9 @@ volatile unsigned int Realview_PBX::_cores;
 
 void Realview_PBX::reboot()
 {
-    db<Machine>(WRN) << "Machine::reboot()" << endl;
 //TODO: reboot!
+    CPU::int_disable();
+    CPU::halt();
     while(true);
 }
 

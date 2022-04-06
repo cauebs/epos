@@ -65,13 +65,13 @@ public:
 
         operator unsigned int() const { return _flags; }
 
-        friend Debug & operator<<(Debug & db, const Page_Flags & f) { db << hex << f._flags; return db; }
+        friend OStream & operator<<(OStream & os, const Page_Flags & f) { os << hex << f._flags; return os; }
 
     private:
         unsigned int _flags;
     };
 
-    // Page_Table
+    // Page Table
     class Page_Table
     {
     public:
@@ -114,20 +114,19 @@ public:
 
         friend OStream & operator<<(OStream & os, Page_Table & pt) {
             os << "{\n";
-            int brk = 0;
             for(unsigned int i = 0; i < PT_ENTRIES; i++)
-                if(pt[i]) {
-                    os << "[" << i << "]=" << pte2phy(pt[i]) << "  ";
-                    if(!(++brk % 4))
-                        os << "\n";
-                }
-            os << "\n}";
+                if(pt[i])
+                    os << "[" << i << "] \t" << pte2phy(pt[i]) << "\n";
+            os << "}";
             return os;
         }
 
     private:
         PT_Entry _entry[PT_ENTRIES]; // the Phy_Addr in each entry passed through phy2pte()
     };
+
+    // Page Directory
+    typedef Page_Table Page_Directory;
 
     // Chunk (for Segment)
     class Chunk
@@ -203,9 +202,6 @@ public:
         Page_Table * _pt; // this is a physical address
     };
 
-    // Page Directory
-    typedef Page_Table Page_Directory;
-
     // Directory (for Address_Space)
     class Directory
     {
@@ -232,7 +228,7 @@ public:
 
         Log_Addr attach(const Chunk & chunk, Log_Addr addr) {
             unsigned int from = directory(addr);
-            if((from + chunk.pts()) < PD_ENTRIES)
+            if((from + chunk.pts()) > PD_ENTRIES)
                 return Log_Addr(false);
             if(attach(from, chunk.pt(), chunk.pts(), chunk.flags()))
                 return from << DIRECTORY_SHIFT;
@@ -277,7 +273,7 @@ public:
 
         void detach(unsigned int from, const Page_Table * pt, unsigned int n) {
             for(unsigned int i = from; i < from + n; i++) {
-                (*_pd)[i] = 0;
+                _pd->log()[i] = 0;
                 flush_tlb(i << DIRECTORY_SHIFT);
             }
         }
@@ -406,8 +402,10 @@ public:
 
     static PT_Entry phy2pte(Phy_Addr frame, Page_Flags flags) { return frame | flags; }
     static Phy_Addr pte2phy(PT_Entry entry) { return (entry & ~Page_Flags::MASK); }
+    static Page_Flags pte2flg(PT_Entry entry) { return (entry & Page_Flags::MASK); }
     static PD_Entry phy2pde(Phy_Addr frame, Page_Flags flags) { return frame | flags; }
     static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::MASK); }
+    static Page_Flags pde2flg(PT_Entry entry) { return (entry & Page_Flags::MASK); }
 
     static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy - (RAM_BASE - PHY_MEM) : phy + (PHY_MEM - RAM_BASE)); }
     static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log + (RAM_BASE - PHY_MEM) : log - (PHY_MEM - RAM_BASE)); }
@@ -425,8 +423,8 @@ public:
     }
 
 private:
-    static Phy_Addr pd() { return CPU::cr3() ; }
-    static void pd(Phy_Addr pd) { CPU::cr3(pd); }
+    static Phy_Addr pd() { return CPU::pd() ; }
+    static void pd(Phy_Addr pd) { CPU::pd(pd); }
 
     static void flush_tlb() { CPU::flush_tlb(); }
     static void flush_tlb(Log_Addr addr) { CPU::flush_tlb(addr); }

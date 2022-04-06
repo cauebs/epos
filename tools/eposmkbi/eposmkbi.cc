@@ -46,8 +46,6 @@ struct Configuration
     int            space_z;
     unsigned char  uuid[8];   // EPOS image Universally Unique Identifier
     bool           need_boot;
-    bool           need_si;
-    bool           si_in_setup;
     unsigned int   boot_length_min;
     unsigned int   boot_length_max;
 };
@@ -198,17 +196,6 @@ int main(int argc, char **argv)
     }
     unsigned int boot_size = image_size;
 
-    // Reserve space for System_Info if necessary
-    if(CONFIG.need_si && !CONFIG.si_in_setup) {
-        if(sizeof(System_Info) <= MAX_SI_LEN) {
-            image_size += pad(fd_img, MAX_SI_LEN);
-        } else {
-            fprintf(out, " failed!\n");
-            fprintf(err, "System_Info structure is too large (%ld)!\n", static_cast<unsigned long>(sizeof(System_Info)));
-            return 1;
-        }
-    }
-
     // Add SETUP
     sprintf(file, "%s/img/setup_%s", argv[optind], CONFIG.mmod);
     if(file_exist(file)) {
@@ -259,55 +246,48 @@ int main(int argc, char **argv)
     si.bm.img_size = image_size - boot_size;
 
     // Add System_Info
-    if(CONFIG.need_si) {
-        unsigned int si_offset = boot_size;
-        fprintf(out, "    Adding system info");
-        if(CONFIG.si_in_setup) {
-            fprintf(out, " to SETUP:");
-            struct stat stat;
-            if(fstat(fd_img, &stat) < 0)  {
-                fprintf(out, " failed! (stat)\n");
-                return 0;
-            }
-            char * buffer = (char *) malloc(stat.st_size);
-            if(!buffer) {
-                fprintf(out, " failed! (malloc)\n");
-                return 0;
-            }
-            memset(buffer, '\1', stat.st_size);
-            lseek(fd_img, 0, SEEK_SET);
-            if(read(fd_img, buffer, stat.st_size) < 0) {
-                fprintf(out, " failed! (read)\n");
-                free(buffer);
-                return 0;
-            }
-
-            char placeholder[] = "<System_Info placeholder>";
-            char * setup_si = reinterpret_cast<char *>(memmem(buffer, stat.st_size, placeholder, strlen(placeholder)));
-            if(setup_si) {
-                si_offset = setup_si - buffer;
-            } else {
-                fprintf(out, " failed! (SETUP does not contain System_Info placeholder)\n");
-                free(buffer);
-                return 0;
-            }
-        } else {
-            fprintf(out, " to image:");
-            si_offset = boot_size;
-        }
-        if(lseek(fd_img, si_offset, SEEK_SET) < 0) {
-            fprintf(err, "Error: can't seek the boot image!\n");
-            return 1;
-        }
-        switch(CONFIG.word_size) {
-        case  8: if(!add_boot_map<char>(fd_img, &si)) return 1; break;
-        case 16: if(!add_boot_map<short>(fd_img, &si)) return 1; break;
-        case 32: if(!add_boot_map<long>(fd_img, &si)) return 1; break;
-        case 64: if(!add_boot_map<long long>(fd_img, &si)) return 1; break;
-        default: return 1;
-        }
-        fprintf(out, " done.\n");
+    unsigned int si_offset = boot_size;
+    fprintf(out, "    Adding system info");
+    fprintf(out, " to SETUP:");
+    struct stat stat;
+    if(fstat(fd_img, &stat) < 0)  {
+        fprintf(out, " failed! (stat)\n");
+        return 0;
     }
+    char * buffer = (char *) malloc(stat.st_size);
+    if(!buffer) {
+        fprintf(out, " failed! (malloc)\n");
+        return 0;
+    }
+    memset(buffer, '\1', stat.st_size);
+    lseek(fd_img, 0, SEEK_SET);
+    if(read(fd_img, buffer, stat.st_size) < 0) {
+        fprintf(out, " failed! (read)\n");
+        free(buffer);
+        return 0;
+    }
+
+    char placeholder[] = "<System_Info placeholder>";
+    char * setup_si = reinterpret_cast<char *>(memmem(buffer, stat.st_size, placeholder, strlen(placeholder)));
+    if(setup_si) {
+        si_offset = setup_si - buffer;
+    } else {
+        fprintf(out, " failed! (SETUP does not contain System_Info placeholder)\n");
+        free(buffer);
+        return 0;
+    }
+    if(lseek(fd_img, si_offset, SEEK_SET) < 0) {
+        fprintf(err, "Error: can't seek the boot image!\n");
+        return 1;
+    }
+    switch(CONFIG.word_size) {
+    case  8: if(!add_boot_map<char>(fd_img, &si)) return 1; break;
+    case 16: if(!add_boot_map<short>(fd_img, &si)) return 1; break;
+    case 32: if(!add_boot_map<long>(fd_img, &si)) return 1; break;
+    case 64: if(!add_boot_map<long long>(fd_img, &si)) return 1; break;
+    default: return 1;
+    }
+    fprintf(out, " done.\n");
 
     // Adding MACH specificities
     fprintf(out, "\n  Adding specific boot features of \"%s\":", CONFIG.mmod);
@@ -509,10 +489,6 @@ bool parse_config(FILE * cfg_file, Configuration * cfg)
         cfg->boot_length_min = 0;
         cfg->boot_length_max = 0;
     }
-
-    // Determine if System_Info is needed and how it must be handled
-    cfg->need_si = (!strcmp(cfg->mach, "pc") || !strcmp(cfg->mach, "riscv") || !strcmp(cfg->mach, "cortex"));
-    cfg->si_in_setup = cfg->need_si && !cfg->need_boot; // If the image contains a boot sector, then SI will be on a separate disk sector. Otherwise, it will be inside SETUP.
 
     return true;
 }

@@ -11,25 +11,18 @@ class Machine_Common;
 template<> struct Traits<Machine_Common>: public Traits<Build>
 {
     static const bool debugged = Traits<Build>::debugged;
+    static const bool emulated                  = Traits<Build>::EXPECTED_SIMULATION_TIME;
+    static const bool armv7                     = (Traits<Build>::ARCHITECTURE == Traits<Build>::ARMv7);
+
+protected:
+    static const bool library                   = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
 };
 
 template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
-private:
-    static const bool library                   = (Traits<Build>::MODE == Traits<Build>::LIBRARY);
-
 public:
-    static const bool emulated                  = Traits<Build>::EXPECTED_SIMULATION_TIME;
-    static const bool cpus_use_local_timer      = false;
-    static const bool armv7                     = (Traits<Build>::ARCHITECTURE == Traits<Build>::ARMv7);
-
     static const unsigned int NOT_USED          = 0xffffffff;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
-
-    // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = (armv7 ? 16 : 32) * 1024;
-    static const unsigned int MAX_THREADS       = 16;
-    static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;
 
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x00000000;
@@ -46,14 +39,18 @@ public:
     // Logical Memory Map
     static const unsigned int APP_LOW           = library ? RESET : 0x80000000;
     static const unsigned int APP_HIGH          = APP_LOW + (RAM_TOP - RAM_BASE) - 1;
-
-    static const unsigned int APP_CODE          = library ? RESET : APP_LOW;
+    static const unsigned int APP_CODE          = APP_LOW;
     static const unsigned int APP_DATA          = APP_CODE + (armv7 ? 4 : 32) * 1024 * 1024;
 
     static const unsigned int INIT              = library ? NOT_USED : 0x00200000;
     static const unsigned int PHY_MEM           = 0x00000000;   // 0 (max 1792 MB)
     static const unsigned int IO                = 0x70000000;   // 2 GB - 256 MB (max 247 MB)
-    static const unsigned int SYS               = armv7 ? 0xff700000 : 0xf8000000;   // 4 GB - (armv7 ? 9 MB : 128 MB)
+    static const unsigned int SYS               = armv7 ? 0xffc00000 : 0xf8000000;   // 4 GB - (armv7 ? 4 MB : 128 MB)
+
+    // Default Sizes and Quantities
+    static const unsigned int STACK_SIZE        = (armv7 ? 16 : 32) * 1024;
+    static const unsigned int MAX_THREADS       = 16;
+    static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;
 
     // PLL clocks
     static const unsigned int ARM_PLL_CLOCK     = 1333333333;
@@ -64,9 +61,6 @@ public:
 template<> struct Traits<IC>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
-
-    static const unsigned int IRQS = 96;
-    static const unsigned int INTS = 128;
 };
 
 template<> struct Traits<Timer>: public Traits<Machine_Common>

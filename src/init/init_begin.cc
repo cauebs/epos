@@ -10,14 +10,7 @@ __BEGIN_SYS
 class Init_Begin
 {
 public:
-    Init_Begin() {
-        // INIT is not an ordinary process, so we must handle BSS here for kernels
-        // For non-kernel configurations, where INIT is linked with the unique ELF image, BSS was already cleared by SETUP
-	if(Traits<System>::multitask)
-            Machine::clear_bss();
-
-        Machine::pre_init(System::info());
-    }
+    Init_Begin() { Machine::pre_init(System::info()); }
 };
 
 Init_Begin init_begin;

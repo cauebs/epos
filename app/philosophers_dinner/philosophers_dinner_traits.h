@@ -9,7 +9,7 @@ __BEGIN_SYS
 template<> struct Traits<Build>: public Traits_Tokens
 {
     // Basic configuration
-    static const unsigned int MODE = BUILTIN;
+    static const unsigned int MODE = LIBRARY;
     static const unsigned int ARCHITECTURE = ARMv8;
     static const unsigned int MACHINE = Cortex;
     static const unsigned int MODEL = Raspberry_Pi3;
@@ -147,6 +147,10 @@ template<> struct Traits<Alarm>: public Traits<Build>
 {
     static const bool visible = hysterically_debugged;
 };
+
+template<> struct Traits<Address_Space>: public Traits<Build> {};
+
+template<> struct Traits<Segment>: public Traits<Build> {};
 
 
 __END_SYS

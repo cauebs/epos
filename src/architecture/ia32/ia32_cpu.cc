@@ -78,12 +78,6 @@ void CPU::switch_context(Context * volatile * o, Context * volatile n)
     ASM("        mov     52(%esp), %esp          # new	                 \n");
     ASM("        pop     %0                                              \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + CPU::id() * sizeof(MMU::Page))->esp) : );
 
-if(Traits<System>::multitask)
-    // Adjust the system-level stack pointer in the dummy TSS used by this Thread for syscalls and interrupts
-    ASM("        mov     %%esp, %%eax                                    \n"
-        "        add     $52, %%eax                                      \n"
-        "        movl    %%eax, %0                                       \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + CPU::id() * sizeof(MMU::Page))->esp0) : : "eax");
-
     // IRET pops FLAGS, CS, and IP
     ASM("        popa                                                    \n"
         "        iret                                                    \n");

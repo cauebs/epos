@@ -19,5 +19,7 @@ extern "C" {
     // Utility-related methods that differ from kernel and user space.
     // OStream
     void _print(const char * s) { Display::puts(s); }
+    void _print_preamble() {}
+    void _print_trailler(bool error) { if(error) _panic(); }
 }
 

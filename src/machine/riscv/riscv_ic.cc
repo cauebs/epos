@@ -12,7 +12,6 @@ extern "C" { static void print_context(); }
 __BEGIN_SYS
 
 static CPU::Reg a0;
-static CPU::Reg a1;
 
 // Class attributes
 IC::Interrupt_Handler IC::_int_vector[IC::INTS];
@@ -41,23 +40,17 @@ void IC::dispatch()
 {
     Interrupt_Id id = int_id();
     a0 = CPU::a0(); // exit passes status through a0
-    a1 = CPU::a1(); // syscalls pass messages through a1
 
     if((id != INT_SYS_TIMER) || Traits<IC>::hysterically_debugged)
         db<IC>(TRC) << "IC::dispatch(i=" << id << ")" << endl;
-
-    // IPIs must be acknowledged before calling the ISR, because in RISC-V, MIP set bits will keep on triggering interrupts until they are cleared
-    if(id == INT_RESCHEDULER)
-        IC::ipi_eoi(id);
 
     // MIP.MTI is a direct logic on (MTIME == MTIMECMP) and reseting the Timer seems to be the only way to clear it
     if(id == INT_SYS_TIMER)
         Timer::reset();
 
-    CPU::a1(a1);
     _int_vector[id](id);
 
-    if(id >= HARD_INT)
+    if(id >= EXCS)
         CPU::a0(0); // tell CPU::Context::pop(true) not to increment PC since it is automatically incremented for hardware interrupts
 }
 

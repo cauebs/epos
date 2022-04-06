@@ -15,11 +15,11 @@ void IC::init()
     disable(); // will be enabled on demand as handlers are registered
 
     // Set all exception handlers to exception()
-    for(Interrupt_Id i = 0; i < CPU::EXCEPTIONS; i++)
+    for(Interrupt_Id i = 0; i < EXCS; i++)
         _int_vector[i] = &exception;
 
     // Set all interrupt handlers to int_not()
-    for(Interrupt_Id i = HARD_INT; i < INTS; i++)
+    for(Interrupt_Id i = EXCS; i < INTS; i++)
         _int_vector[i] = int_not;
 }
 

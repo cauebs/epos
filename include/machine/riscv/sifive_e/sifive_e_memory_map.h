@@ -18,7 +18,9 @@ struct Memory_Map
         RAM_TOP         = Traits<Machine>::RAM_TOP,
         MIO_BASE        = Traits<Machine>::MIO_BASE,
         MIO_TOP         = Traits<Machine>::MIO_TOP,
-        BOOT_STACK      = RAM_BASE + 512 * 1024 - sizeof(long), // RAM_BASE + 512 KB - 4 (will be used as the stack pointer, not the base)
+        INT_M2S         = RAM_TOP + 1 - 4096,   // the last page is used by the _int_m2s() interrupt forwarder installed by SETUP
+        BOOT_STACK      = INT_M2S - Traits<Build>::CPUS * Traits<Machine>::STACK_SIZE, // will be used as the stack's base, not the stack pointer
+        FREE_TOP        = BOOT_STACK,
 
         // Memory-mapped devices
         TEST_BASE       = 0x00100000, // SiFive test engine

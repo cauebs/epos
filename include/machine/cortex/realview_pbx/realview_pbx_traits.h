@@ -10,6 +10,9 @@ __BEGIN_SYS
 class Machine_Common;
 template<> struct Traits<Machine_Common>: public Traits<Build>
 {
+    typedef IF<MODE != LIBRARY, void, bool>::Result Sanity;
+    static const Sanity sane = true;
+
     static const bool debugged = Traits<Build>::debugged;
 };
 
@@ -25,24 +28,23 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int RAM_TOP           = 0x07ffffff;   // 128 MB
     static const unsigned int MIO_BASE          = 0x10000000;
     static const unsigned int MIO_TOP           = 0x1fffffff;
-    static const unsigned int RESET             = 0x00010000; // QEMU requires the vector table (i.e. SETUP's entry point) to be here
 
-    // Boot Image
-    static const unsigned int BOOT_LENGTH_MIN   = NOT_USED;
-    static const unsigned int BOOT_LENGTH_MAX   = NOT_USED;
-
-    // Logical Memory Map
+    // Physical Memory at Boot
     static const unsigned int BOOT              = NOT_USED;
     static const unsigned int IMAGE             = NOT_USED;
+    static const unsigned int RESET             = 0x00010000; // QEMU requires the vector table (i.e. SETUP's entry point) to be here
     static const unsigned int SETUP             = NOT_USED;
+
+    // Logical Memory Map (this machine only supports mode LIBRARY, so these are indeed also physical addresses)
+    static const unsigned int APP_LOW           = RESET;
+    static const unsigned int APP_HIGH          = RAM_TOP;
+    static const unsigned int APP_CODE          = APP_LOW;
+    static const unsigned int APP_DATA          = APP_LOW;
+
     static const unsigned int INIT              = NOT_USED;
-
-    static const unsigned int PHY_MEM           = 0x80000000; // 2 GB
-    static const unsigned int IO                = 0xf0000000;   // 4 GB - 256 MB
-
-    static const unsigned int SYS               = 0xff400000;   // 4 GB - 12 MB
-    static const unsigned int SYS_CODE          = 0xff700000;
-    static const unsigned int SYS_DATA          = 0xff740000;
+    static const unsigned int PHY_MEM           = NOT_USED;
+    static const unsigned int IO                = NOT_USED;
+    static const unsigned int SYS               = NOT_USED;
 
     // Default Sizes and Quantities
     static const unsigned int STACK_SIZE        = 16 * 1024;
@@ -58,16 +60,13 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
 template<> struct Traits<IC>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
-
-    static const unsigned int IRQS = 92;
-    static const unsigned int INTS = 96;
 };
 
 template<> struct Traits<Timer>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
 
-    static const unsigned int UNITS = 1;
+    static const unsigned int UNITS = 1; // ARM Cortex-A9 Global Timer
 
     // Meaningful values for the timer frequency range from 100 to 10000 Hz. The
     // choice must respect the scheduler time-slice, i. e., it must be higher

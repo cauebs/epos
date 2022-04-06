@@ -43,9 +43,6 @@ C_COMP_HDRS=
 C_LINK_FLGS="$MACH_LD_FLAGS"
 C_LINK_OBJS=
 C_LINK_LIBS=
-if [ "$BOOT_STACK" != "" ] ; then
-    C_LINK_FLGS="$C_LINK_FLGS --defsym=__boot_stack__=$BOOT_STACK"
-fi
 
 CPP_COMPILER="$TOOLS_PREFIX""g++"
 CPP_COMP_FLGS="--no-exceptions --no-rtti --no-use-cxa-atexit -std=c++14"

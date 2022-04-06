@@ -73,7 +73,7 @@ gittest: buildtest runtest
 linktest: FORCE
 		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 
-cleantest: clean
+cleantest: cleanapps
 		$(foreach tst,$(TESTS),$(LINK) $(TST)/$(tst) $(APP);)
 		$(foreach tst,$(TESTS),cd $(TST)/${tst} && $(MAKE) APPLICATION=$(tst) clean;)
 		find $(APP) -maxdepth 1 -type l -exec $(CLEAN) {} \;
@@ -114,6 +114,7 @@ veryclean: clean cleanapps cleantest
 		find $(IMG) -name "*.out" -exec $(CLEAN) {} \;
 		find $(IMG) -name "*.pcap" -exec $(CLEAN) {} \;
 		find $(IMG) -name "*.net" -exec $(CLEAN) {} \;
+		find $(IMG) -name "*.log" -exec $(CLEAN) {} \;
 		find $(IMG) -maxdepth 1 -type f -perm 755 -exec $(CLEAN) {} \;
 
 dist: veryclean

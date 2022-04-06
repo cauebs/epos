@@ -254,8 +254,7 @@ protected:
         else
             db<Timer>(WRN) << "Timer not installed!"<< endl;
 
-        for(unsigned int i = 0; i < Traits<Machine>::CPUS; i++)
-            _current[i] = _initial;
+        _current = _initial;
     }
 
 public:
@@ -265,13 +264,13 @@ public:
         _channels[_channel] = 0;
     }
 
-    Tick read() { return _current[CPU::id()]; }
+    Tick read() { return _current; }
 
     int restart() {
-        db<Timer>(TRC) << "Timer::restart() => {f=" << frequency() << ",h=" << reinterpret_cast<void *>(_handler) << ",count=" << _current[CPU::id()] << "}" << endl;
+        db<Timer>(TRC) << "Timer::restart() => {f=" << frequency() << ",h=" << reinterpret_cast<void *>(_handler) << ",count=" << _current << "}" << endl;
 
-        int percentage = _current[CPU::id()] * 100 / _initial;
-        _current[CPU::id()] = _initial;
+        int percentage = _current * 100 / _initial;
+        _current = _initial;
 
         return percentage;
     }
@@ -295,7 +294,7 @@ protected:
     unsigned int _channel;
     Count _initial;
     bool _retrigger;
-    volatile Count _current[Traits<Machine>::CPUS];
+    volatile Count _current;
     Handler _handler;
 
     static Timer * _channels[CHANNELS];

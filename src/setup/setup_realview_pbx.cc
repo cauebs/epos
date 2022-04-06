@@ -1,8 +1,7 @@
 // EPOS Realview-PBX (ARM Cortex-A9) SETUP
 
 // If emulating on QEMU, uboot has a vector table in ROM at 0x00000000.
-// It relocates EPOS image (.bin), which has this vector table at the
-// first address, to 0x00010000 and jumps to it.
+// It relocates EPOS image (.bin), which has this vector table at the first address, to 0x00010000 and jumps to it.
 
 #include <architecture.h>
 #include <machine.h>
@@ -27,16 +26,16 @@ class Setup
 {
 private:
     // Physical memory map
-    static const unsigned int RAM_BASE          = Memory_Map::RAM_BASE;
-    static const unsigned int RAM_TOP           = Memory_Map::RAM_TOP;
-    static const unsigned int MIO_BASE          = Memory_Map::MIO_BASE;
-    static const unsigned int MIO_TOP           = Memory_Map::MIO_TOP;
-    static const unsigned int VECTOR_TABLE      = Memory_Map::VECTOR_TABLE;
-    static const unsigned int FLAT_PAGE_TABLE   = Memory_Map::FLAT_PAGE_TABLE;
-    static const unsigned int BOOT_STACK        = Memory_Map::BOOT_STACK;
-    static const unsigned int APP_LOW           = Memory_Map::APP_LOW;
-    static const unsigned int APP_HIGH          = Memory_Map::APP_HIGH;
-    static const unsigned int SYS_FLAGS         = Memory_Map::SYS_FLAGS;
+    static const unsigned long RAM_BASE         = Memory_Map::RAM_BASE;
+    static const unsigned long RAM_TOP          = Memory_Map::RAM_TOP;
+    static const unsigned long MIO_BASE         = Memory_Map::MIO_BASE;
+    static const unsigned long MIO_TOP          = Memory_Map::MIO_TOP;
+    static const unsigned long VECTOR_TABLE     = Memory_Map::VECTOR_TABLE;
+    static const unsigned long FLAT_PAGE_TABLE  = Memory_Map::FLAT_PAGE_TABLE;
+    static const unsigned long BOOT_STACK       = Memory_Map::BOOT_STACK;
+    static const unsigned long APP_LOW          = Memory_Map::APP_LOW;
+    static const unsigned long APP_HIGH         = Memory_Map::APP_HIGH;
+    static const unsigned long SYS_FLAGS        = Memory_Map::SYS_FLAGS;
 
     // Architecture Imports
     typedef CPU::Reg Reg;
@@ -59,11 +58,7 @@ private:
 
 private:
     System_Info * si;
-
-    static volatile bool paging_ready;
 };
-
-volatile bool Setup::paging_ready = false;
 
 Setup::Setup()
 {
@@ -72,54 +67,21 @@ Setup::Setup()
 
     si = reinterpret_cast<System_Info *>(&__boot_time_system_info);
 
-    db<Setup>(TRC) << "Setup()" << endl;
-    db<Setup>(INF) << "Setup:sp=" << CPU::sp() << endl;
+    db<Setup>(TRC) << "Setup(si=" << reinterpret_cast<void *>(si) << ",sp=" << CPU::sp() << ")" << endl;
     db<Setup>(INF) << "Setup:si=" << *si << endl;
 
-    if(si->bm.n_cpus > Traits<Machine>::CPUS)
-        si->bm.n_cpus = Traits<Machine>::CPUS;
+    // Reserve memory for the FLAT_PAGE_TABLE if needed by hidding the respective memory from the system
+    if(FLAT_PAGE_TABLE != Memory_Map::NOT_USED)
+        si->bm.mem_top = FLAT_PAGE_TABLE - 1;
 
-    if(CPU::id() == 0) { // bootstrap CPU (BSP)
-        // Print a SETUP summary
-        say_hi();
+    // Print basic facts about this EPOS instance
+    say_hi();
 
-        // Configure a flat memory model for the single task in the system
-        setup_flat_paging();
+    // Configure a flat memory model for the single task in the system
+    setup_flat_paging();
 
-        // Enable paging
-        enable_paging();
-
-        // Signalizes other CPUs that paging is up
-        paging_ready = true;
-
-        // Enable the Snoop Control Unit for SMP
-        if(Traits<System>::multicore)
-            scu()->enable();
-    } else { // additional CPUs (APs)
-        // Wait for the Boot CPU to setup page tables
-        while(!paging_ready);
-        enable_paging();
-    }
-
-    // Configure the Snoop Control Unit for SMP
-    if(Traits<System>::multicore) {
-        scu()->secure_invalidate();
-        CPU::actlr(CPU::actlr() | CPU::SMP); // enable SMP
-        CPU::actlr(CPU::actlr() | CPU::FW);  // enable the broadcasting of cache & TLB maintenance operations to other SMP cores
-        scu()->enable_cache_coherence();
-    }
-
-    // Configure GIC for SMP, set SYS_FLAGS to the address where secondary CPUS will start executing and then wake them up
-    // QEMU Bug: we already moved the vector table from Traits<Machine>::RESET to Memory_Map::VECTOR_TABLE and Traits<Machine>::RESET
-    //   (and SETUP as a whole will soon be part of the free memory for multitasking configurations), but QEMU puts non-BSP cores on halt in a loop
-    //   with "tst r1, r1", so the wake up address cannot be 0. A barrier at Machine::pre_init() ensures Traits<Machine>::RESET won't be overwritten
-    //   before all cores get there.
-    if(Traits<System>::multicore && (CPU::id() == 0)) {
-        gic_distributor()->init();
-        gic_cpu()->init();
-        *reinterpret_cast<unsigned long *>(SYS_FLAGS) = Traits<Machine>::RESET;
-        gic_distributor()->smp_init(Traits<Machine>::CPUS);
-    }
+    // Enable paging
+    enable_paging();
 
     // SETUP ends here, so let's transfer control to next stage (INIT or APP)
     call_next();
@@ -131,9 +93,9 @@ void Setup::setup_flat_paging()
     db<Setup>(TRC) << "Setup::setup_flat_paging()" << endl;
 
     CPU::Reg * pt = reinterpret_cast<CPU::Reg *>(FLAT_PAGE_TABLE);
-    for(CPU::Reg i = MMU_Common<12,0,20>::directory(RAM_BASE); i < MMU_Common<12,0,20>::directory(RAM_BASE) + MMU_Common<12,0,20>::pages(RAM_TOP - RAM_BASE); i++)
+    for(CPU::Reg i = MMU_Common<10,10,12>::directory(RAM_BASE); i < MMU_Common<10,10,12>::directory(RAM_BASE) + MMU_Common<10,10,12>::pages(RAM_TOP - RAM_BASE); i++)
         pt[i] = (i << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_MEM;
-    for(CPU::Reg i = MMU_Common<12,0,20>::directory(MIO_BASE); i < MMU_Common<12,0,20>::directory(MIO_BASE) + MMU_Common<12,0,20>::pages(MIO_TOP - MIO_BASE) - 1; i++)
+    for(CPU::Reg i = MMU_Common<10,10,12>::directory(MIO_BASE); i < MMU_Common<10,10,12>::directory(MIO_BASE) + MMU_Common<10,10,12>::pages(MIO_TOP - MIO_BASE) - 1; i++)
         pt[i] = (i << 20) | ARMv7_MMU::Section_Flags::FLAT_MEMORY_DEV;
 }
 
@@ -141,12 +103,12 @@ void Setup::enable_paging()
 {
     db<Setup>(TRC) << "Setup::enable_paging()" << endl;
     if(Traits<Setup>::hysterically_debugged) {
-        db<Setup>(INF) << "pc=" << CPU::pc() << endl;
-        db<Setup>(INF) << "sp=" << CPU::sp() << endl;
+        db<Setup>(INF) << "Setup::pc=" << CPU::pc() << endl;
+        db<Setup>(INF) << "Setup::sp=" << CPU::sp() << endl;
     }
 
     // MNG_DOMAIN for no page permission verification, CLI_DOMAIN otherwise
-    CPU::dacr(CPU::CLI_DOMAIN);
+    CPU::dacr(CPU::MNG_DOMAIN);
 
     CPU::dsb();
     CPU::isb();
@@ -216,9 +178,8 @@ void Setup::call_next()
     // In library mode, we'll continue using the BOOT stacks until we reach the first application
     _start();
 
-    // SETUP is now part of the free memory and this point should never be
-    // reached, but, just in case ... :-)
-    panic();
+    // SETUP is now part of the free memory and this point should never be reached, but, just in case ... :-)
+    db<Setup>(ERR) << "OS failed to init!" << endl;
 }
 
 __END_SYS
@@ -254,25 +215,22 @@ void _reset()
     // Configure a stack for SVC mode, which will be used until the first Thread is created
     CPU::mode(CPU::MODE_SVC); // enter SVC mode (with interrupts disabled)
     CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1) - sizeof(long));
-    CPU::int_disable(); // interrupts will be re-enabled at init_end
 
-    if(CPU::id() == 0) {
-        // After a reset, we copy the vector table to 0x0000 to get a cleaner memory map (it is originally at 0x8000)
-        // An alternative would be to set vbar address via mrc p15, 0, r1, c12, c0, 0
-        CPU::r0(reinterpret_cast<CPU::Reg>(&_entry)); // load r0 with the source pointer
-        CPU::r1(Memory_Map::VECTOR_TABLE); // load r1 with the destination pointer
+    // After a reset, we copy the vector table to 0x0000 to get a cleaner memory map (it is originally at 0x8000)
+    // An alternative would be to set vbar address via mrc p15, 0, r1, c12, c0, 0
+    CPU::r0(reinterpret_cast<CPU::Reg>(&_entry)); // load r0 with the source pointer
+    CPU::r1(Memory_Map::VECTOR_TABLE); // load r1 with the destination pointer
 
-        // Copy the first 32 bytes
-        CPU::ldmia(); // load multiple registers from the memory pointed by r0 and auto-increment it accordingly
-        CPU::stmia(); // store multiple registers to the memory pointed by r1 and auto-increment it accordingly
+    // Copy the first 32 bytes
+    CPU::ldmia(); // load multiple registers from the memory pointed by r0 and auto-increment it accordingly
+    CPU::stmia(); // store multiple registers to the memory pointed by r1 and auto-increment it accordingly
 
-        // Repeat to copy the subsequent 32 bytes
-        CPU::ldmia();
-        CPU::stmia();
+    // Repeat to copy the subsequent 32 bytes
+    CPU::ldmia();
+    CPU::stmia();
 
-        // Clear the BSS (SETUP was linked to CRT0, but entry point didn't go through BSS clear)
-        Machine::clear_bss();
-    }
+    // Clear the BSS (SETUP was linked to CRT0, but entry point didn't go through BSS clear)
+    Machine::clear_bss();
 
     // Set VBAR to point to the relocated the vector table
     CPU::vbar(Memory_Map::VECTOR_TABLE);
@@ -290,5 +248,7 @@ void _reset()
 
 void _setup()
 {
+    CPU::int_disable(); // interrupts will be re-enabled at init_end
+
     Setup setup;
 }

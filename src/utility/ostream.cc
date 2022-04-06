@@ -92,8 +92,7 @@ int OStream::ptoa(const void * p, char * s)
     s[1] = 'x';
 
     for(j = 0; j < sizeof(void *) * 2; j++, v >>= 4)
-        s[2 + sizeof(void *) * 2 - 1 - j]
-            = _digits[v & 0xf];
+        s[2 + sizeof(void *) * 2 - 1 - j] = _digits[v & 0xf];
 
     return j + 2;
 }

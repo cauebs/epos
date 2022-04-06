@@ -104,7 +104,6 @@ public:
 
     static void switch_context(Context * volatile * o, Context * volatile n);
 
-    static void syscall(void * message);
 
     static unsigned int id();
     static unsigned int cores();

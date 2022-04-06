@@ -10,13 +10,14 @@ __BEGIN_SYS
 class Machine_Common;
 template<> struct Traits<Machine_Common>: public Traits<Build>
 {
+    typedef IF<MODE != LIBRARY, void, bool>::Result Sanity;
+    static const Sanity sane = true;
+
     static const bool debugged = Traits<Build>::debugged;
 };
 
 template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
-    static const bool cpus_use_local_timer      = false;
-
     static const unsigned int NOT_USED          = 0xffffffff;
     static const unsigned int CPUS              = Traits<Build>::CPUS;
 
@@ -27,19 +28,17 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int RAM_TOP           = 0x20007fff;   // 32 KB
     static const unsigned int MIO_BASE          = 0x40000000;
     static const unsigned int MIO_TOP           = 0x440067ff;
-    static const unsigned int BOOT_LOADER       = ROM_BASE;
-    static const unsigned int BOOT_LOADER_SIZE  = 16 * 1024;
 
     // Physical Memory at Boot
+    static const unsigned int BOOT_LOADER       = ROM_BASE;
+    static const unsigned int BOOT_LOADER_SIZE  = 16 * 1024;
     static const unsigned int BOOT              = NOT_USED;
-    static const unsigned int BOOT_STACK        = RAM_TOP - 4;  // RAM_TOP - sizeof(int)
     static const unsigned int IMAGE             = ROM_BASE;     // image on FLASH (max 512 KB)
     static const unsigned int SETUP             = NOT_USED;
 
     // Logical Memory Map (this machine only supports mode LIBRARY, so these are indeed also physical addresses)
     static const unsigned int APP_LOW           = RAM_BASE;
     static const unsigned int APP_HIGH          = RAM_TOP;
-
     static const unsigned int APP_CODE          = BOOT_LOADER + BOOT_LOADER_SIZE;
     static const unsigned int APP_DATA          = APP_LOW;
 
@@ -57,9 +56,6 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
 template<> struct Traits<IC>: public Traits<Machine_Common>
 {
     static const bool debugged = hysterically_debugged;
-
-    static const unsigned int IRQS = 48;
-    static const unsigned int INTS = 65;
 };
 
 template<> struct Traits<Timer>: public Traits<Machine_Common>

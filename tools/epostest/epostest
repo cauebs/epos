@@ -3,17 +3,21 @@
 EPOS=
 APP=$EPOS/app
 IMG=$EPOS/img
-#MODES="LIBRARY BUILTIN KERNEL"
+REP=$EPOS/report
 MODES="LIBRARY"
 APPLICATIONS="hello philosophers_dinner producer_consumer"
-LIBRARY_TARGETS=("IA32 PC Legacy_PC" "RV32 RISCV SiFive_E" "ARMv7 Cortex LM3S811" "ARMv7 Cortex Realview_PBX" "ARMv7 Cortex Raspberry_Pi3" "ARMv8 Cortex Raspberry_Pi3")
-LIBRARY_TESTS="active_test alarm_test segment_test"
-BUILTIN_TARGETS=()
-BUILTIN_TESTS=""
-KERNEL_TARGETS=()
-KERNEL_TESTS=""
+LIBRARY_TARGETS=("IA32 PC Legacy_PC" "RV32 RISCV SiFive_E" "ARMv7 Cortex LM3S811" "ARMv7 Cortex eMote3" "ARMv7 Cortex Realview_PBX" "ARMv7 Cortex Zynq" "ARMv7 Cortex Raspberry_Pi3" "ARMv8 Cortex Raspberry_Pi3")
+LIBRARY_TESTS=""
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NORMAL='\033[0m'
 
 set -e
+
+if [ ! -e "$REP" ] ; then
+    mkdir $REP
+fi
 
 cd $EPOS
 
@@ -27,8 +31,7 @@ for MODE in $MODES ; do
     let "TODO+=$#"
 
     printf "\n********************************************************************************\n"
-    printf "\nPreparing test set for $N_TARGETS targets in mode $MODE: $APPLICATIONS $TESTS\n\n"
-    make linktest
+    printf "\nPreparing test set for $N_TARGETS targets in mode $MODE: $APPLICATIONS $TESTS\n"
     for ((i = 0; i < N_TARGETS; i++)) do
         set -- ${TARGETS[$i]}
         ARCH=$1
@@ -39,10 +42,13 @@ for MODE in $MODES ; do
         printf "\n--------------------------------------------------------------------------------\n"
         printf "Running test set for $MMOD (a $MACH on $ARCH) in mode $MODE\n\n"
 
+        make veryclean &> /dev/null
+        make linktest &> /dev/null
+
         DONE=0
         for TEST in $APPLICATIONS $TESTS ; do
             sed -e "s/^\(.*MODE = \).*;$/\1$MODE;/" -e "s/^\(.*ARCHITECTURE = \).*;$/\1$ARCH;/" -e "s/^\(.*MACHINE = \).*;$/\1$MACH;/" $APP/$TEST/$TEST""_traits.h -e "s/^\(.*MODEL = \).*;$/\1$MMOD;/" -i $APP/$TEST/$TEST""_traits.h
-            if [ -e "$IMG/${PREFIX}-${TEST}.out" ] ; then
+            if [ -e "$REP/${PREFIX}-${TEST}.out" ] ; then
               let "DONE+=1"
             fi
         done
@@ -51,13 +57,23 @@ for MODE in $MODES ; do
             continue
         fi
 
-        make cleantest &> /dev/null
         make "APPLICATIONS=$APPLICATIONS" "TESTS=$TESTS" gittest
 
         for TEST in $APPLICATIONS $TESTS ; do
-            mv -f $IMG/$TEST     $IMG/$PREFIX"-"$TEST"" &> /dev/null || true
-            mv -f $IMG/$TEST.img $IMG/$PREFIX"-"$TEST".img" &> /dev/null || true
-            mv -f $IMG/$TEST.out $IMG/$PREFIX"-"$TEST".out" &> /dev/null || true
+            mv -f $IMG/$TEST     $REP/$PREFIX"-"$TEST"" &> /dev/null || true
+            mv -f $IMG/$TEST.img $REP/$PREFIX"-"$TEST".img" &> /dev/null || true
+            mv -f $IMG/$TEST.out $REP/$PREFIX"-"$TEST".out" &> /dev/null || true
         done
     done
 done
+
+make veryclean &> /dev/null
+
+printf "********************************************************************************\n"
+cd $REP
+printf "${GREEN}Passed:\n"
+grep -l "The last thread has exited!" *.out
+printf "\n${RED}Failed:\n"
+grep -L "The last thread has exited!" *.out
+printf "${NORMAL}"
+printf "********************************************************************************\n"

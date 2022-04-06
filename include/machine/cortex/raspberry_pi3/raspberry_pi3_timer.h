@@ -123,10 +123,6 @@ public:
         _periodic = periodic;
         power(FULL);
         timer()->config(UNIT, _count);
-        if(interrupt)
-            IC::enable(IC::INT_USER_TIMER0);
-        else
-            IC::disable(IC::INT_USER_TIMER0);
     }
 
     ~User_Timer_Engine() {

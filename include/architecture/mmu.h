@@ -80,6 +80,7 @@ public:
 
     constexpr static unsigned long page(const Log_Addr & addr) { return (addr >> PAGE_SHIFT) & (PT_ENTRIES - 1); }
     constexpr static unsigned long directory(const Log_Addr & addr) { return addr >> DIRECTORY_SHIFT; }
+    constexpr static unsigned long index(const Log_Addr & base, const Log_Addr & addr) { return (addr - base) >> PAGE_SHIFT; }
 
     constexpr static Log_Addr align_page(const Log_Addr & addr) { return (addr + sizeof(Page) - 1) & ~(sizeof(Page) - 1); }
     constexpr static Log_Addr align_directory(const Log_Addr & addr) { return (addr + PT_ENTRIES * sizeof(Page) - 1) &  ~(PT_ENTRIES * sizeof(Page) - 1); }

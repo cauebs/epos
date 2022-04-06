@@ -28,10 +28,13 @@ public:
     OStream(): _base(10), _error(false) {}
 
     OStream & operator<<(const Begl & begl) {
+        _error = false;
+        _print_preamble();
         return *this;
     }
 
     OStream & operator<<(const Endl & endl) {
+        _print_trailler(_error);
         print("\n");
         _base = 10;
         return *this;

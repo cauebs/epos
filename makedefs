@@ -80,6 +80,11 @@ LMACH		= $(LMACHNAME)_$(MMOD)
 LSYS		= $(LSYSNAME)_$(MMOD)
 LINIT		= $(LINITNAME)_$(MMOD)
 LUTIL		= $(LUTILNAME)_$(MMOD)
+ifeq ($(SMOD), library)
+BOOT_ROM	= 
+else
+BOOT_ROM	= -device loader,file=$(APPLICATION).img,addr=$(IMAGE_ADDR),force-raw=on 
+endif
 
 # Boot Memory Map
 MEM_SIZE	= $(shell $(BIN)/eposcfg MEM_SIZE_KB 2> /dev/null)
@@ -103,13 +108,14 @@ COMP_PREFIX		= $($(ARCH)_COMP_PREFIX)
 ARCH_ENDIANESS		= $(ARCH_$(call GETTK,ENDIANESS,$(ARCH_TRAITS)))
 ARCH_WORD_SIZE		= $(call GETTK,WORD_SIZE,$(ARCH_TRAITS))
 ARCH_CLOCK		= $(call GETTK,CLOCK,$(ARCH_TRAITS))
-CC_M_FLAG		= "-m$(ARCH_WORD_SIZE)"
+CC_M_FLAG		= -m$(ARCH_WORD_SIZE)
+#QEMU_DEBUG      = -D $(addsuffix .log,$(APPLICATION)) -d int,mmu
 
 # Machine specifics
 pc_CC_FLAGS		= $(CC_M_FLAG) -Wa,--32
 pc_AS_FLAGS		:= --32
 pc_LD_FLAGS		:= -m elf_i386
-pc_EMULATOR		= qemu-system-i386 -smp $(CPUS) -m $(MEM_SIZE)k -nographic -no-reboot -drive format=raw,index=0,if=floppy,read-only,file=
+pc_EMULATOR		= qemu-system-i386 $(QEMU_DEBUG) -smp $(CPUS) -m $(MEM_SIZE)k -nographic -no-reboot -drive format=raw,index=0,if=floppy,read-only,file=
 pc_DEBUGGER		:= gdb
 pc_FLASHER		:=
 pc_MAGIC		:= --nmagic
@@ -121,7 +127,7 @@ ifeq ($(MMOD),realview_pbx)
 cortex_CC_FLAGS		:= -mcpu=cortex-a9
 cortex_AS_FLAGS		:= -mcpu=cortex-a9
 cortex_LD_FLAGS		:=
-cortex_EMULATOR		= qemu-system-arm -machine realview-pbx-a9 -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot -kernel 
+cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine realview-pbx-a9 -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
 cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
@@ -133,7 +139,7 @@ endif
 ifeq ($(MMOD),zynq)
 cortex_CC_FLAGS		:= -mcpu=cortex-a9
 cortex_AS_FLAGS		:= -mcpu=cortex-a9
-cortex_EMULATOR		= qemu-system-arm -machine xilinx-zynq-a9  -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot -kernel 
+cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine xilinx-zynq-a9  -smp $(CPUS) -m $(MEM_SIZE)k -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
 cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
@@ -145,14 +151,10 @@ endif
 ifeq ($(MMOD),raspberry_pi3)
 ifeq ($(ARCH),armv7)
 cortex_CC_FLAGS		:= -mcpu=cortex-a53 -mfloat-abi=hard -mfpu=vfp
-cortex_EMULATOR		= qemu-system-aarch64 -M raspi2 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot -kernel 
+cortex_EMULATOR		= qemu-system-aarch64 $(QEMU_DEBUG) -M raspi2 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
 else
 cortex_CC_FLAGS		:= -mcpu=cortex-a53 -mabi=lp64 -Wno-attributes
-ifeq ($(SMOD), library)
-cortex_EMULATOR		= qemu-system-aarch64 -M raspi3 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot -kernel 
-else
-cortex_EMULATOR		= qemu-system-aarch64 -M raspi3 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot -device loader,file=$(APPLICATION).img,addr=$(IMAGE_ADDR),force-raw=on -kernel 
-endif
+cortex_EMULATOR		= qemu-system-aarch64 $(QEMU_DEBUG) -M raspi3 -cpu cortex-a53 -smp 4 -m 1G -serial null -serial mon:stdio -nographic -no-reboot $(BOOT_ROM) -kernel 
 endif
 cortex_AS_FLAGS		:= -mcpu=cortex-a53
 cortex_LD_FLAGS		:=
@@ -165,11 +167,11 @@ cortex_IMG_SUFFIX	:= .bin
 endif
 
 ifeq ($(MMOD),lm3s811)
-cortex_EMULATOR		= qemu-system-arm -machine lm3s811evb -m $(MEM_SIZE)k -serial mon:stdio -serial null -nographic -no-reboot -kernel 
+cortex_EMULATOR		= qemu-system-arm $(QEMU_DEBUG) -machine lm3s811evb -m $(MEM_SIZE)k -serial mon:stdio -serial null -nographic -no-reboot -kernel 
 cortex_CC_FLAGS		:= -mcpu=cortex-m3 -mthumb -mabi=atpcs
 cortex_AS_FLAGS		:= -mcpu=cortex-m3 -mthumb -meabi=gnu
 cortex_LD_FLAGS		:=
-cortex_DEBUGGER		:= arm-none-eabi-gdb
+cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
 cortex_CODE_NAME	:= .init
@@ -182,7 +184,7 @@ cortex_EMULATOR		=
 cortex_CC_FLAGS		:= -mcpu=cortex-m3 -mthumb -mabi=atpcs
 cortex_AS_FLAGS		:= -mcpu=cortex-m3 -mthumb -meabi=gnu
 cortex_LD_FLAGS		:=
-cortex_DEBUGGER		:= arm-none-eabi-gdb
+cortex_DEBUGGER		:= gdb
 cortex_FLASHER		= $(TLS)/eposflash/eposflash-$(MMOD) -d /dev/ttyACM0 -f
 cortex_MAGIC		:= --omagic
 cortex_CODE_NAME	:= .init
@@ -194,7 +196,7 @@ ifeq ($(MMOD),sifive_e)
 riscv_CC_FLAGS		:= -Wl, -mno-relax
 riscv_AS_FLAGS		:= 
 riscv_LD_FLAGS		:= --no-relax
-riscv_EMULATOR		= qemu-system-riscv32 -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot -device loader,file=$(IMAGE),addr=$(IMAGE_ADDR),force-raw=on -kernel 
+riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
 riscv_DEBUGGER		:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
 riscv_MAGIC		:= --nmagic
@@ -207,7 +209,7 @@ ifeq ($(MMOD),sifive_u)
 riscv_CC_FLAGS		:= -Wl, -mno-relax
 riscv_AS_FLAGS		:= 
 riscv_LD_FLAGS		:= --no-relax
-riscv_EMULATOR		= qemu-system-riscv64 -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot -kernel 
+riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot -kernel 
 riscv_DEBUGGER  	:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
 riscv_MAGIC		:= --nmagic
@@ -227,8 +229,8 @@ atmega_CODE_NAME	:= .init
 atmega_DATA_NAME	:= .data
 atmega_IMG_SUFFIX	:= .hex
 
-MACH_CC_FLAGS	:= $($(MACH)_CC_FLAGS) -O -nostdinc -fno-stack-protector -fno-pie -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-address-of-packed-member
-MACH_CXX_FLAGS	:= $($(MACH)_CC_FLAGS) -O -std=c++14 -nostdinc --no-exceptions --no-rtti --no-use-cxa-atexit --no-asynchronous-unwind-tables -fno-stack-protector -fno-pie -fdata-sections -ffunction-sections -Wall -Werror -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-attribute-alias -Wno-placement-new -Wno-class-memaccess -Wno-address-of-packed-member
+MACH_CC_FLAGS	:= $($(MACH)_CC_FLAGS) -O -nostdinc --no-stack-protector --no-pie -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-address-of-packed-member
+MACH_CXX_FLAGS	:= $($(MACH)_CC_FLAGS) -O -std=c++14 -nostdinc --no-exceptions --no-rtti --no-use-cxa-atexit --no-unwind-tables --no-asynchronous-unwind-tables --no-stack-protector --no-pie --data-sections --function-sections -Wall -Werror -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-attribute-alias -Wno-placement-new -Wno-class-memaccess -Wno-address-of-packed-member
 MACH_AS_FLAGS	:= $($(MACH)_AS_FLAGS)
 MACH_LD_FLAGS	:= $($(MACH)_LD_FLAGS)
 MACH_CODE_NAME	:= $($(MACH)_CODE_NAME)

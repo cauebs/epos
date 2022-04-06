@@ -28,14 +28,14 @@ public:
     {
     public:
         Context() {}
-        Context(Reg flags, Log_Addr  lr, Log_Addr pc): _flags(flags), _lr(lr), _pc(pc) {
+        Context(Reg psr, Log_Addr  lr, Log_Addr pc): _psr(psr), _lr(lr), _pc(pc) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
                 _r0 = 0; _r1 = 1; _r2 = 2; _r3 = 3; _r4 = 4; _r5 = 5; _r6 = 6; _r7 = 7; _r8 = 8; _r9 = 9; _r10 = 10; _r11 = 11; _r12 = 12;
             }
         }
 
     public:
-        Reg _flags;
+        Reg _psr;
         Reg _r0;
         Reg _r1;
         Reg _r2;
@@ -185,7 +185,7 @@ public:
 
     static void svc() { ASM("svc 0x0"); }
 
-    static void iret() { ASM(".ret: bx lr"); }
+    static void iret() { ASM("1: bx lr"); }
 };
 
 class ARMv7_M: public ARMv7
@@ -193,8 +193,7 @@ class ARMv7_M: public ARMv7
 public:
     static const bool thumb = true;
 
-    // CPU Flags
-    typedef Reg Flags;
+    // CPU Status
     enum {
         FLAG_THUMB      = 1 << 24,      // Thumb state
         FLAG_Q          = 1 << 27,      // DSP Overflow
@@ -205,6 +204,7 @@ public:
     };
 
     // Exceptions
+    static const unsigned int EXCEPTIONS = 16;
     typedef Reg Exception_Id;
     enum {                      // Priority
         EXC_RESET       = 1,    // -3 (highest)
@@ -247,7 +247,7 @@ public:
                << ",sp="  << &c
                << ",lr="  << c._lr
                << ",pc="  << c._pc
-               << ",psr=" << c._flags
+               << ",psr=" << c._psr
                << "}" << dec;
             return os;
         }
@@ -291,8 +291,8 @@ public:
     static void flush_tlb(Reg r) {}     // no MMU
 
     // ARMv7-M specifics
-    static Flags psr() { Reg r; ASM("mrs %0, xpsr"       : "=r"(r) :); return r; }
-    static void  psr(Flags r) { ASM("msr xpsr_nzcvq, %0" : : "r"(r) : "cc"); }
+    static Reg psr() { Reg r; ASM("mrs %0, xpsr"       : "=r"(r) :); return r; }
+    static void  psr(Reg r) { ASM("msr xpsr_nzcvq, %0" : : "r"(r) : "cc"); }
 
     static void psr_to_tmp() { ASM("mrs r12, xpsr" : : : "r12"); }      // r12 is the intra-procedure-call temporary register
     static void tmp_to_psr() { ASM("msr xpsr_nzcvq, r12" : : : "cc"); }
@@ -306,8 +306,8 @@ inline void ARMv7_M::Context::push(bool interrupt, bool stay_in_svc)
         ASM("stmfd sp!, {r0-r3, r12, lr}");
     } else {
         ASM("sub sp, #4");              // reserve room for PC
-        ASM("stmfd sp!, {r0-r12, lr}"); // used by context_switch, save all registers, pc will be replaced later in context switch by .ret
-        ASM("adr r12, .ret");           // calculate the return address using the saved r12 as a temporary
+        ASM("stmfd sp!, {r0-r12, lr}"); // used by context_switch, save all registers, pc will be replaced later in context switch by 1f
+        ASM("adr r12, 1f");             // calculate the return address using the saved r12 as a temporary
         ASM("orr r12, #1");             // adjust for thumb mode
         ASM("str r12, [sp, #56]");      // save calculated PC
         psr_to_tmp();
@@ -339,8 +339,7 @@ class ARMv7_A: public ARMv7
 public:
     static const bool thumb = false;
 
-    // CPU Flags
-    typedef Reg Flags;
+    // CPU Status
     enum {
         FLAG_M          = 0x1f << 0,       // Processor Mode (5 bits)
         FLAG_T          = 1    << 5,       // Thumb state
@@ -367,11 +366,12 @@ public:
     };
 
     // Exceptions
+    static const unsigned int EXCEPTIONS = 0; // Exceptions are not handled by IC and have no entries in IC::_int_vector; they are configured by SETUP in the vector table.
     typedef Reg Exception_Id;
     enum {
-        EXC_START                   = 1,
+        EXC_RESET                   = 1,
         EXC_UNDEFINED_INSTRUCTION   = 2,
-        EXC_SWI                     = 3,
+        EXC_SOFTWARE_INTERRUPT      = 3,
         EXC_PREFETCH_ABORT          = 4,
         EXC_DATA_ABORT              = 5,
         EXC_RESERVED                = 6,
@@ -440,7 +440,7 @@ public:
                << ",sp="  << &c
                << ",lr="  << c._lr
                << ",pc="  << c._pc
-               << ",psr=" << c._flags
+               << ",psr=" << c._psr
                << ",usp=" << c._usp
                << ",ulr=" << c._ulr
                << "}" << dec;
@@ -579,13 +579,12 @@ inline void ARMv7_A::Context::push(bool interrupt, bool stay_in_svc)
          else
              ASM("stmfd sp!, {r0-r3, r12, lr, pc}");
     } else {
-         ASM("stmfd sp!, {r0-r12, lr, pc}");    // pc will be replaced later in context switch by .ret
-         ASM("adr r12, .ret");                  // calculate the return address using the saved r12 as a temporary
+         ASM("stmfd sp!, {r0-r12, lr, pc}");    // pc will be replaced later in context switch by 1f
+         ASM("adr r12, 1f");                    // calculate the return address using the saved r12 as a temporary
          ASM("str r12, [sp, #56]");             // save calculated PC
          psr_to_tmp();
-         ASM("push {r12}");
-         if(!multitask)
-             ASM("sub sp, #8");                 // skip ulr and usp
+         ASM("push {r12}");			// push psr
+         ASM("sub sp, #8");                // skip ulr and usp
          if(save_fpu)
              fpu_save();
     }
@@ -601,9 +600,8 @@ inline void ARMv7_A::Context::pop(bool interrupt, bool stay_in_svc)
     } else {
         if(save_fpu)
             fpu_restore();
-        if(!multitask)
-            ASM("add sp, #8"); // skip ulr and usp
-        ASM("pop {r12}");
+        ASM("add sp, #8"); 				// skip ulr and usp
+        ASM("pop {r12}");				// pop psr
         tmp_to_psr();
         ASM("ldmfd sp!, {r0-r12, lr, pc}^");
     }
@@ -658,8 +656,8 @@ public:
         Context() {}
         Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): Base::Context(entry, exit, usp) {}
 
-        void save() volatile  __attribute__ ((naked));
-        void load() const volatile;
+        void save() volatile __attribute__ ((naked));
+        void load() const volatile __attribute__ ((naked));
     };
 
 public:
@@ -704,13 +702,6 @@ public:
         init_stack_helper(&ctx->_r0, an ...);
         return ctx;
     }
-
-    // In ARMv7, the main thread of each task gets parameters over registers, not the stack, and they are initialized by init_stack.
-    template<typename ... Tn>
-    static Log_Addr init_user_stack(Log_Addr usp, void (* exit)(), Tn ... an) { return usp; }
-
-    static void syscall(void * message);
-    static void syscalled();
 
     using CPU_Common::htole64;
     using CPU_Common::htole32;

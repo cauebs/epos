@@ -61,10 +61,10 @@ public:
     static PPB accuracy() { return ACCURACY; }
 
     static Time_Stamp time_stamp() {
-
-#ifdef __cortex_a__
-
-#if defined(__mmod_raspberry_pi3__)
+#ifdef __cortex_m__
+        return (_overflow << 32) + reg(GPTMTAR); // Not supported by LM3S811 on QEMU (version 2.7.50)
+#else
+#ifdef __raspberry_pi3__
         return reg(STCLO);
 #else
         if(sizeof(Time_Stamp) == sizeof(CPU::Reg32))
@@ -79,16 +79,8 @@ public:
         } while(reg(GTCTRH) != high);
 
         return (high << 32) | low;
-
 #endif
-
 #endif
-#ifdef __cortex_m__
-
-        return (_overflow << 32) + reg(GPTMTAR); // Not supported by LM3S811 on QEMU (version 2.7.50)
-
-#endif
-
     }
 
 private:
@@ -96,12 +88,9 @@ private:
 
     static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::TSC_BASE)[o / sizeof(CPU::Reg32)]; }
 
-#if defined(__mmod_emote3__) || defined(__mmod_lm3s811__)
-
+#ifdef __cortex_m__
     static void int_handler(IC_Common::Interrupt_Id int_id) { _overflow++; }
-
     static volatile Time_Stamp _overflow;
-
 #endif
 
 };

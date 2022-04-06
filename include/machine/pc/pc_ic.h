@@ -485,8 +485,6 @@ public:
         INT_SYS_TIMER   = Engine::INT_TIMER,
         INT_KEYBOARD    = Engine::INT_KEYBOARD,
         INT_LAST_HARD   = Engine::INT_LAST_HARD,
-        INT_RESCHEDULER = Engine::INT_IPI,
-        INT_SYSCALL     = Engine::INT_FIRST_SOFT,
         INT_PMU,
         LAST_INT
     };

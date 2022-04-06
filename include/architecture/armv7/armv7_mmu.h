@@ -72,7 +72,7 @@ public:
 
     public:
         Page_Flags() {}
-        Page_Flags(unsigned int f) : _flags(f) {}
+        Page_Flags(unsigned long f) : _flags(f) {}
         Page_Flags(Flags f) : _flags(nG |
                                     ((f & Flags::RW)  ? RW   : RO) |
                                     ((f & Flags::USR) ? USR  : 0) |
@@ -81,12 +81,12 @@ public:
                                     ((f & Flags::EX)  ? 0    : XN) |
                                     ((f & Flags::IO)  ? SDEV : S) ) {}
 
-        operator unsigned int() const { return _flags; }
+        operator unsigned long() const { return _flags; }
 
-        friend Debug & operator<<(Debug & db, const Page_Flags & f) { db << hex << f._flags; return db; }
+        friend OStream & operator<<(OStream & os, const Page_Flags & f) { os << hex << f._flags; return os; }
 
     private:
-        unsigned int _flags;
+        unsigned long _flags;
     };
 
     // Section Flags (for single-level, flat memory mapping)
@@ -114,14 +114,14 @@ public:
         };
 
     public:
-        Section_Flags(unsigned int f) : _flags(f) {}
-        operator unsigned int() const { return _flags; }
+        Section_Flags(unsigned long f) : _flags(f) {}
+        operator unsigned long() const { return _flags; }
 
     private:
-        unsigned int _flags;
+        unsigned long _flags;
     };
 
-    // Page_Table
+    // Page Table
     template<unsigned int ENTRIES>
     class _Page_Table
     {
@@ -165,14 +165,14 @@ public:
 
         friend OStream & operator<<(OStream & os, _Page_Table & pt) {
             os << "{\n";
-            int brk = 0;
             for(unsigned int i = 0; i < ENTRIES; i++)
                 if(pt[i]) {
-                    os << "[" << i << "]=" << pt[i] << "  ";
-                    if(!(++brk % 4))
-                        os << "\n";
+                    if(ENTRIES == PT_ENTRIES)
+                        os << "[" << i << "] \t" << pte2phy(pt[i]) << " " << hex << pte2flg(pt[i]) << dec << "\n";
+                    else
+                        os << "[" << i << "] \t" << pde2phy(pt[i]) << " " << hex << pde2flg(pt[i]) << dec << "\n";
                 }
-            os << "\n}";
+            os << "}";
             return os;
         }
 
@@ -303,6 +303,8 @@ public:
 
         Log_Addr attach(const Chunk & chunk, Log_Addr addr) {
             unsigned int from = directory(addr);
+            if((from + chunk.pts()) > PD_ENTRIES)
+                return Log_Addr(false);
             if(attach(from, chunk.pt(), chunk.pts(), chunk.flags()))
                 return from << DIRECTORY_SHIFT;
             return Log_Addr(false);
@@ -358,7 +360,7 @@ public:
         bool _free;
     };
 
-   // DMA_Buffer
+    // DMA_Buffer
     class DMA_Buffer: public Chunk
     {
     public:
@@ -467,7 +469,7 @@ public:
 
     static unsigned int allocable(Color color = WHITE) { return _free[color].head() ? _free[color].head()->size() : 0; }
 
-    static Page_Directory * volatile current() { return static_cast<Page_Directory * volatile>(pd());}
+    static Page_Directory * volatile current() { return static_cast<Page_Directory * volatile>(pd()); }
 
     static Phy_Addr physical(Log_Addr addr) {
         Page_Directory * pd = current();
@@ -477,8 +479,10 @@ public:
 
     static PT_Entry phy2pte(Phy_Addr frame, Page_Flags flags) { return (frame) | flags | Page_Flags::PTE; }
     static Phy_Addr pte2phy(PT_Entry entry) { return (entry & ~Page_Flags::PT_MASK); }
+    static Page_Flags pte2flg(PT_Entry entry) { return (entry & Page_Flags::PT_MASK); }
     static PD_Entry phy2pde(Phy_Addr frame) { return (frame) | Page_Flags::PD_FLAGS; }
     static Phy_Addr pde2phy(PD_Entry entry) { return (entry & ~Page_Flags::PD_MASK); }
+    static Page_Flags pde2flg(PT_Entry entry) { return (entry & Page_Flags::PD_MASK); }
 
     static Log_Addr phy2log(Phy_Addr phy) { return Log_Addr((RAM_BASE == PHY_MEM) ? phy : (RAM_BASE > PHY_MEM) ? phy - (RAM_BASE - PHY_MEM) : phy + (PHY_MEM - RAM_BASE)); }
     static Phy_Addr log2phy(Log_Addr log) { return Phy_Addr((RAM_BASE == PHY_MEM) ? log : (RAM_BASE > PHY_MEM) ? log + (RAM_BASE - PHY_MEM) : log - (PHY_MEM - RAM_BASE)); }
@@ -488,8 +492,8 @@ public:
     static Color log2color(Log_Addr log) {
         if(colorful) {
             Page_Directory * pd = current();
-            Page_Table * pt = (*pd)[directory(log)];
-            Phy_Addr phy = (*pt)[page(log)] | offset(log);
+            Page_Table * pt = pd->log()[directory(log)];
+            Phy_Addr phy = pt->log()[page(log)] | offset(log);
             return static_cast<Color>(((phy >> PAGE_SHIFT) & 0x7f) % COLORS);
         } else
             return WHITE;

@@ -12,7 +12,6 @@ extern "C" {
 
     void _int_entry();
     void _int_m2s() __attribute((naked, aligned(4)));
-    void _int_wfi() __attribute((naked, aligned(4)));
 
     // SETUP entry point is in .init (and not in .text), so it will be linked first and will be the first function after the ELF header in the image
     void _entry() __attribute__ ((used, naked, section(".init")));
@@ -34,6 +33,7 @@ private:
     static const unsigned int RAM_TOP   = Memory_Map::RAM_TOP;
     static const unsigned int IMAGE     = Memory_Map::IMAGE;
     static const unsigned int SETUP     = Memory_Map::SETUP;
+    static const unsigned int INT_M2S   = Memory_Map::INT_M2S;
 
     // Logical memory map
     static const unsigned int APP_LOW   = Memory_Map::APP_LOW;
@@ -576,7 +576,7 @@ void Setup::setup_sys_pd()
     sys_pd[MMU::directory(SETUP)] =  MMU::phy2pde(si->pmm.phy_mem_pts);
 
     // Attach the portion of the physical memory used by int_m2s at RAM_TOP
-    sys_pd[MMU::directory(RAM_TOP)] =  MMU::phy2pde(si->pmm.phy_mem_pts + (n_pts - 1) * sizeof(Page));
+    sys_pd[MMU::directory(INT_M2S)] =  MMU::phy2pde(si->pmm.phy_mem_pts + (n_pts - 1) * sizeof(Page));
 
     // Attach all physical memory starting at RAM_BASE
     assert((MMU::directory(MMU::align_directory(RAM_BASE)) + n_pts) < (MMU::PD_ENTRIES - 4)); // check if it would overwrite the OS
@@ -617,7 +617,7 @@ void Setup::setup_m2s()
 {
     db<Setup>(TRC) << "Setup::setup_m2s()" << endl;
 
-    memcpy(reinterpret_cast<void *>(Memory_Map::RAM_TOP + 1 - sizeof(Page)), reinterpret_cast<void *>(&_int_m2s), sizeof(Page));
+    memcpy(reinterpret_cast<void *>(INT_M2S), reinterpret_cast<void *>(&_int_m2s), sizeof(Page));
 }
 
 
@@ -791,7 +791,7 @@ void Setup::call_next()
     if(Traits<System>::multitask && (cpu_id == 0)) {
         // This will only happen when INIT was called and Thread was disabled
         // Note we don't have the original stack here anymore!
-        reinterpret_cast<void (*)()>(si->lm.app_entry)();
+        reinterpret_cast<CPU::FSR *>(si->lm.app_entry)();
     }
 
     // SETUP is now part of the free memory and this point should never be
@@ -808,7 +808,7 @@ void _entry() // machine mode
     CPU::mstatusc(CPU::MIE);                            // disable interrupts
     CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);          // enable interrupts at CLINT so IPI and timer can be triggered
     CPU::tp(CPU::mhartid());                            // tp will be CPU::id()
-    CPU::sp(Memory_Map::BOOT_STACK - Traits<Machine>::STACK_SIZE * (CPU::id() + 1)); // set this hart stack (the first stack is reserved for _int_m2s)
+    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1) - sizeof(long)); // set this hart stack (the first stack is reserved for _int_m2s)
     if(Traits<System>::multitask) {
         CLINT::mtvec(CLINT::DIRECT, Memory_Map::RAM_TOP + 1 - sizeof(MMU::Page));  // setup a machine mode interrupt handler to forward timer interrupts (which cannot be delegated via mideleg)
         CPU::mideleg(0xffff);                           // delegate all interrupts to supervisor mode
@@ -830,19 +830,13 @@ void _setup() // supervisor mode
     } else
         CPU::mie(CPU::MSI);                             // enable MSI at CLINT so IPI can be triggered
 
-    if(CPU::id() == 0)
-        Machine::clear_bss();
-    else {
-        CLINT::stvec(CLINT::DIRECT, _int_wfi);          // setup a supervisor mode IPI handler
-        CPU::int_enable();                              // enable interrupts to wait for IPI
-        CPU::halt();                                    // halt the hart waiting for an IPI from hart 0
-    }
+    Machine::clear_bss();
 
     Setup setup;
 }
 
 // RISC-V 32, or perhaps the SiFive-E, doesn't allow timer interrupts to be handled in supervisor mode. The matching of MTIMECMP always triggers interrupt MTI and there seems to be no mechanism in CLINT to trigger STI.
-// Therefore, an interrupt forwarder must be installed. We use RAM_TOP for this, with the code at the beginning of the last page and a stack at the end of the same page.
+// Therefore, an interrupt forwarder must be installed. We use INT_M2S (usually RAM_TOP) for this, with the code at the beginning of the last page and a stack at the end of the same page.
 void _int_m2s()
 {
     // Save context
@@ -851,7 +845,7 @@ void _int_m2s()
         "        sw          a2,   0(sp)                                \n"
         "        sw          a3,   4(sp)                                \n"
         "        sw          a4,   8(sp)                                \n"
-        "        sw          a5,  12(sp)                                \n": : "i"(Memory_Map::BOOT_STACK - 16));
+        "        sw          a5,  12(sp)                                \n": : "i"(Memory_Map::INT_M2S - sizeof(long)));
 
     CPU::Reg id = CPU::mcause();
 
@@ -875,21 +869,4 @@ void _int_m2s()
         "        lw          a5,  12(sp)                                \n"
         "        csrr        sp, mscratch                               \n"
         "        mret                                                   \n");
-}
-
-void _int_wfi()
-{
-    // Save context
-    ASM("        addi        sp,     sp,    -8                          \n"
-        "        sw          a4,   0(sp)                                \n"
-        "        sw          a5,   4(sp)                                \n");
-
-    IC::ipi_eoi(IC::INT_RESCHEDULER);
-    CPU::sipc(CPU::SSI);
-
-    // Restore context
-    ASM("        lw          a4,   0(sp)                                \n"
-        "        lw          a5,   4(sp)                                \n"
-        "        addi        sp,     sp,     8                          \n"
-        "        sret                                                   \n");
 }

@@ -22,7 +22,8 @@ struct Memory_Map
         BOOT            = Traits<Machine>::BOOT,
         IMAGE           = Traits<Machine>::IMAGE,
         SETUP           = Traits<Machine>::SETUP,
-    	BOOT_STACK      = Traits<Machine>::BOOT_STACK,
+    	BOOT_STACK      = NOT_USED, // defined by BOOT and by SETUP
+    	FREE_TOP        = NOT_USED, // PC always use a real MMU
 
         // Logical Address Space
         APP_LOW         = Traits<Machine>::APP_LOW,
@@ -50,7 +51,8 @@ struct Memory_Map
         SYS_CODE        = SYS + 0x00100000,
         SYS_DATA        = SYS + 0x00200000,
         SYS_STACK       = SYS + 0x00300000,
-        SYS_HEAP        = SYS + 0x00400000
+        SYS_HEAP        = SYS + 0x00400000,
+        SYS_HIGH        = SYS + 0x007fffff
     };
 };
 
