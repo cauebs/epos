@@ -41,7 +41,7 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int SYS               = 0xff800000;   // 4 GB - 8 MB
 
     // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = 16 * 1024;
+    static const unsigned int STACK_SIZE        = 256 * 1024;
     static const unsigned int HEAP_SIZE         = 4 * 1024 * 1024;
     static const unsigned int MAX_THREADS       = 16;
 };

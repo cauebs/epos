@@ -4,6 +4,7 @@
 #define __ia32_h
 
 #include <architecture/cpu.h>
+#include <system/memory_map.h>
 
 __BEGIN_SYS
 
@@ -239,7 +240,7 @@ public:
         Reg32 ecx;
         Reg32 edx;
         Reg32 ebx;
-        Reg32 esp;
+        Reg32 esp3;
         Reg32 ebp;
         Reg32 esi;
         Reg32 edi;
@@ -247,7 +248,7 @@ public:
         Reg16 zero5;
         Reg16 cs;
         Reg16 zero6;
-        Reg16 ss;
+        Reg16 ss3;
         Reg16 zero7;
         Reg16 ds;
         Reg16 zero8;
@@ -264,6 +265,13 @@ public:
     // CPU Context
     class Context
     {
+        friend class CPU;       // for Context::push() and Context::pop()
+        friend class IC;        // for Context::push() and Context::pop()
+
+    public:
+        static const unsigned long PAGE_SIZE = 4096; // this does not depend on the MMU configuration; it's a fixed valued
+        static const unsigned long CROSS_LEVEL_CONTEX_SIZE = 13 * sizeof(long); // 8 registers + SS + USP + FLAGS + CS + IP
+
     public:
         Context() {}
         Context(Log_Addr usp, Log_Addr entry): _esp3(usp), _eip(entry), _cs(((Traits<Build>::MODE == Traits<Build>::KERNEL) && usp)? SEL_APP_CODE : SEL_SYS_CODE), _eflags(FLAG_DEFAULTS) {
@@ -272,22 +280,22 @@ public:
             }
         }
 
-        void save() volatile;
-        void load() const volatile;
+        void save() volatile __attribute__ ((naked));
+        void load() const volatile __attribute__ ((naked));
 
         friend Debug & operator<<(Debug & db, const Context & c) {
             db << hex
-               << "{eflags=" << c._eflags
-               << ",eax=" << c._eax
-               << ",ebx=" << c._ebx
-               << ",ecx=" << c._ecx
-               << ",edx=" << c._edx
-               << ",esi=" << c._esi
-               << ",edi=" << c._edi
-               << ",ebp=" << reinterpret_cast<void *>(c._ebp)
-               << ",esp=" << &c
-               << ",eip=" << reinterpret_cast<void *>(c._eip)
-               << ",esp3="<< c._esp3
+               << "{flags=" << c._eflags
+               << ",ax=" << c._eax
+               << ",bx=" << c._ebx
+               << ",cx=" << c._ecx
+               << ",dx=" << c._edx
+               << ",si=" << c._esi
+               << ",di=" << c._edi
+               << ",bp=" << reinterpret_cast<void *>(c._ebp)
+               << ",sp=" << &c
+               << ",ip=" << reinterpret_cast<void *>(c._eip)
+               << ",usp="<< c._esp3
                << ",cs="  << c._cs
                << ",ccs=" << cs()
                << ",cds=" << ds()
@@ -299,6 +307,11 @@ public:
                << "}"     << dec;
             return db;
         }
+
+    private:
+        static void pop(bool usp, bool sp0);
+        static void push(bool usp);
+        static void first_dispatch() __attribute__ ((naked));
 
     private:
         Reg32 _esp3; // only used in multitasking environments
@@ -431,19 +444,42 @@ public:
 
     template<typename ... Tn>
     static Context * init_stack(Log_Addr usp, Log_Addr sp, void (* exit)(), int (* entry)(Tn ...), Tn ... an) {
-        // IA32 first decrements the stack pointer and then writes into the stack
+        // Multitasking scenarios use this method with USP != 0, what causes two contexts to be pushed into the thread's stack.
+        // The context pushed first (and popped last) is the "regular" one, with entry pointing to the thread's entry point.
+        // The second context (popped first) is a dummy context that has _int_leave as entry point. It is a system-level context (CPL=0),
+        // so switch_context doesn't need to care for cross-level IRETs.
+
         sp -= SIZEOF<Tn ... >::Result;
         init_stack_helper(sp, an ...);
         sp -= sizeof(int *);
         *static_cast<int *>(sp) = Log_Addr(exit);
-        if(usp) {
+        if(usp) { // multitask
+            // Real context
             sp -= sizeof(int *);
             *static_cast<int *>(sp) = Log_Addr(SEL_APP_DATA);
             sp -= sizeof(int *);
             *static_cast<int *>(sp) = usp;
+            sp -= sizeof(Context);
+            new (sp) Context(usp, entry);
+
+            // Dummy context
+            sp -= sizeof(Context);
+            return new (sp) Context(0, &Context::first_dispatch);
+        } else { // single-task or kernel threads in multitasking scenarios
+            sp -= sizeof(Context);
+            return new (sp) Context(0, entry);
         }
-        sp -= sizeof(Context);
-        return new (sp) Context(usp, entry);
+    }
+
+    template<typename ... Tn>
+    static Log_Addr init_user_stack(Log_Addr usp, void (* exit)(), Tn ... an) {
+        usp -= SIZEOF<Tn ... >::Result;
+        init_stack_helper(usp, an ...);
+        if(exit) { // only MAIN has exit = 0, because it returns via CRT0
+            usp -= sizeof(int *);
+            *static_cast<int *>(usp) = Log_Addr(exit);
+        }
+        return usp;
     }
 
 public:
@@ -452,13 +488,13 @@ public:
     static void flags(Flags r) {    ASM("pushl %0" : : "r"(r)); ASM("popfl"); }
 
     static Reg32 esp() { Reg32 r; ASM("movl %%esp,%0"  : "=r"(r) :); return r; }
-    static void esp(Reg32 r) {    ASM("movl %0, %%esp" : : "r"(r)); }
+    static void esp(Reg32 r) {    ASM("movl %0, %%esp" : : "X"(r)); }
 
     static Reg32 eax() { Reg32 r; ASM("movl %%eax,%0"  : "=r"(r) :); return r; }
-    static void eax(Reg32 r) {    ASM("movl %0, %%eax" : : "r"(r)); }
+    static void eax(Reg32 r) {    ASM("movl %0, %%eax" : : "X"(r)); }
 
     static Reg32 ecx() { Reg32 r; ASM("movl %%ecx,%0"  : "=r"(r) :); return r; }
-    static void ecx(Reg32 r) {    ASM("movl %0, %%ecx" : : "r"(r)); }
+    static void ecx(Reg32 r) {    ASM("movl %0, %%ecx" : : "X"(r)); }
 
     static Log_Addr eip() {
         Log_Addr value;
@@ -588,6 +624,35 @@ private:
     static Hertz _cpu_current_clock;
     static Hertz _bus_clock;
 };
+
+inline void CPU::Context::pop(bool usp, bool sp0)
+{
+if(sp0)
+    ASM("       mov     %%esp, %%eax    # update ESP0 in the dummy TSS          \n"
+        "       add     %1, %%eax       #   by calculating the value it will    \n"
+        "       movl    %%eax, %0       #   have after IRET                     \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + id() * PAGE_SIZE)->esp0) : "i"(CROSS_LEVEL_CONTEX_SIZE + (usp ? sizeof(long) : 0)) : "eax");
+
+if(usp)
+    ASM("       pop     %0              # pop USP                               \n" : : "m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + id() * PAGE_SIZE)->esp3));
+
+    ASM("       popa                    # pop registers                         \n"
+        "       iret                    # pop [SS, USP], FLAGS, CS, and IP,     \n"
+        "                               #   and return [to user-level]          \n");
+}
+
+inline void CPU::Context::push(bool usp)
+{
+if(usp)
+    ASM("       pop     %esi            # recover return address from the stack \n"
+        "       pushf                   # create a stack structure for IRET     \n"
+        "       push    %cs             #   with FLAGS, CS                      \n"
+        "       push    %esi            #   and IP                              \n");
+
+    ASM("       pusha                   # push registers                        \n");
+
+if(usp)
+    ASM("       push    %0              # save USP                              \n" : "=m"(reinterpret_cast<TSS *>(Memory_Map::TSS0 + id() * PAGE_SIZE)->esp3) : );
+}
 
 inline CPU::Reg64 htole64(CPU::Reg64 v) { return CPU::htole64(v); }
 inline CPU::Reg32 htole32(CPU::Reg32 v) { return CPU::htole32(v); }

@@ -531,17 +531,17 @@ public:
     using Engine::irq2int;
 
 private:
-    static void dispatch(unsigned int i);
+    static void dispatch(unsigned int i) __attribute__ ((thiscall));
 
     // Logical handlers
     static void int_not(Interrupt_Id i);
 
     // Physical handlers
-    static void entry();
-    static void exc_not(Reg eip, Reg cs, Reg eflags, Reg error);
-    static void exc_pf (Reg eip, Reg cs, Reg eflags, Reg error);
-    static void exc_gpf(Reg eip, Reg cs, Reg eflags, Reg error);
-    static void exc_fpu(Reg eip, Reg cs, Reg eflags, Reg error);
+    static void entry() __attribute__ ((naked));
+    static void exc_not(Reg eip, Reg cs, Reg eflags, Reg error) __attribute__ ((naked));
+    static void exc_pf (Reg eip, Reg cs, Reg eflags, Reg error) __attribute__ ((naked));
+    static void exc_gpf(Reg eip, Reg cs, Reg eflags, Reg error) __attribute__ ((naked));
+    static void exc_fpu(Reg eip, Reg cs, Reg eflags, Reg error) __attribute__ ((naked));
 
     static void init();
 

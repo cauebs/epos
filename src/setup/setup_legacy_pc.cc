@@ -801,13 +801,13 @@ void Setup::setup_tss()
 
     // Configure only the segment selectors and the kernel stack
     tss->ss0 = CPU::SEL_SYS_DATA;
-    tss->esp0 = SYS_STACK + Traits<System>::STACK_SIZE; // APs' tss->esp0 will be reconfigured later by CPU::Context::load()
+    tss->esp0 = SYS_STACK + Traits<System>::STACK_SIZE * (CPU::id() + 1) - 2 * sizeof(int); // APs' tss->esp will be reconfigured later by CPU::Context::load()
     tss->cs = (CPU::GDT_SYS_CODE << 3) | CPU::PL_APP;
-    tss->ss = (CPU::GDT_SYS_DATA << 3) | CPU::PL_APP;
-    tss->ds = tss->ss;
-    tss->es = tss->ss;
-    tss->fs = tss->ss;
-    tss->gs = tss->ss;
+    tss->ss3 = (CPU::GDT_APP_DATA << 3) | CPU::PL_APP;
+    tss->ds = tss->ss3;
+    tss->es = tss->ss3;
+    tss->fs = tss->ss3;
+    tss->gs = tss->ss3;
 
     // Load TR with TSS
     CPU::Reg16 tr = ((CPU::GDT_TSS0 + cpu_id) << 3) | CPU::PL_SYS;
@@ -832,8 +832,8 @@ void Setup::load_parts()
     bi = static_cast<char *>(MMU::phy2log(bi));
     si = reinterpret_cast<System_Info *>(SYS_INFO);
     if(Traits<Setup>::hysterically_debugged) {
-        db<Setup>(INF) << "Setup:SYS_INFO[phy]: " << MMU::Translation(bi) << endl;
-        db<Setup>(INF) << "Setup:SYS_INFO[log]: " << MMU::Translation(si) << endl;
+        db<Setup>(INF) << "Setup:boot_info: " << MMU::Translation(bi) << endl;
+        db<Setup>(INF) << "Setup:system_info: " << MMU::Translation(si) << endl;
     }
     memcpy(si, __boot_time_system_info, sizeof(System_Info));
 

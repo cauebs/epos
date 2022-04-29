@@ -39,10 +39,13 @@ public:
         AUX_BASE        = adjust_mio(0x3f215000), // mini UART + 2 x SPI master
         SD1_BASE        = adjust_mio(0x3f300000), // Arasan sdhci controller
         DMA1_BASE       = adjust_mio(0x3fe05000),
+
         VECTOR_TABLE    = RAM_BASE,
         FLAT_PAGE_TABLE = (RAM_TOP - 16 * 1024) & ~(0x3fff), // used only with No_MMU in LIBRARY mode; 32-bit: 16KB, 4096 4B entries, each pointing to 1 MB regions, thus mapping up to 4 GB; 64-bit: 16KB, 2048 8B entries, each pointing to 32 MB regions, thus mapping up to 64 GB; 16K-aligned for TTBR;
-        BOOT_STACK      = (Traits<System>::multitask ? RAM_TOP + 1 : FLAT_PAGE_TABLE) - (Traits<Build>::CPUS) * Traits<Machine>::STACK_SIZE, // will be used as the stack's base, not the stack pointer
-        FREE_TOP        = BOOT_STACK, // used only with No_MMU in LIBRARY mode
+        BOOT_STACK      = (multitask ? RAM_TOP + 1 : FLAT_PAGE_TABLE) - (Traits<Build>::CPUS) * Traits<Machine>::STACK_SIZE, // will be used as the stack's base, not the stack pointer
+
+        FREE_BASE       = VECTOR_TABLE + (armv7 ? 4 : 16) * 1024,
+        FREE_TOP        = BOOT_STACK,
 
         // Logical Address Space -- Need to be verified
         APP_LOW         = Traits<Machine>::APP_LOW,

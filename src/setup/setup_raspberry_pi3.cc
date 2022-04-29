@@ -2,6 +2,7 @@
 
 #include <architecture.h>
 #include <machine.h>
+#include <system/memory_map.h>
 #include <utility/elf.h>
 #include <utility/string.h>
 
@@ -33,6 +34,8 @@ private:
     static const unsigned long IMAGE            = Memory_Map::IMAGE;
     static const unsigned long SETUP            = Memory_Map::SETUP;
     static const unsigned long FLAT_PAGE_TABLE  = Memory_Map::FLAT_PAGE_TABLE;
+    static const unsigned long FREE_BASE        = Memory_Map::FREE_BASE;
+    static const unsigned long FREE_TOP         = Memory_Map::FREE_TOP;
 
     // Logical memory map
     static const unsigned long APP_LOW          = Memory_Map::APP_LOW;
@@ -85,7 +88,11 @@ private:
 private:
     char * bi;
     System_Info * si;
+
+    static volatile bool paging_ready;
 };
+
+volatile bool Setup::paging_ready = false;
 
 Setup::Setup()
 {
@@ -94,22 +101,63 @@ Setup::Setup()
 
     bi = reinterpret_cast<char *>(IMAGE);
     si = reinterpret_cast<System_Info *>(&__boot_time_system_info);
+    if(si->bm.n_cpus > Traits<Machine>::CPUS)
+        si->bm.n_cpus = Traits<Machine>::CPUS;
 
     db<Setup>(TRC) << "Setup(bi=" << reinterpret_cast<void *>(bi) << ",sp=" << CPU::sp() << ")" << endl;
     db<Setup>(INF) << "Setup:si=" << *si << endl;
 
-    // Reserve memory for the FLAT_PAGE_TABLE if needed by hidding the respective memory from the system
-    if(FLAT_PAGE_TABLE != Memory_Map::NOT_USED)
-        si->bm.mem_top = FLAT_PAGE_TABLE - 1;
+    if(CPU::id() == 0) { // bootstrap CPU (BSP)
 
-    // Print basic facts about this EPOS instance
-    say_hi();
+        if(Traits<System>::multitask) {
 
-    // Configure a flat memory model for the single task in the system
-    setup_flat_paging();
+            // Build the memory model
+            build_lm();
+            build_pmm();
 
-    // Enable paging
-    enable_paging();
+            // Print basic facts about this EPOS instance
+            if(!si->lm.has_app)
+                db<Setup>(ERR) << "No APPLICATION in boot image, you don't need EPOS!" << endl;
+            if(!si->lm.has_sys)
+                db<Setup>(INF) << "No SYSTEM in boot image, assuming EPOS is a library!" << endl;
+            say_hi();
+
+            // Configure the memory model defined above
+            setup_sys_pt();
+            setup_app_pt();
+            setup_sys_pd();
+
+            // Enable paging
+            enable_paging();
+
+            // Load EPOS parts (e.g. INIT, SYSTEM, APPLICATION)
+            load_parts();
+
+            // Adjust APPLICATION CODE and DATA permissions
+            adjust_perms();
+        } else { // library mode
+
+            // Print basic facts about this EPOS instance
+            say_hi();
+
+            // Configure a flat memory model for the single task in the system
+            setup_flat_paging();
+
+            // Enable paging
+            enable_paging();
+
+        }
+
+        // Signalizes other CPUs that paging is up
+        paging_ready = true;
+
+    } else { // additional CPUs (APs)
+
+        // Wait for the Boot CPU to setup page tables
+        while(!paging_ready);
+        enable_paging();
+
+    }
 
     // SETUP ends here, so let's transfer control to next stage (INIT or APP)
     call_next();
@@ -334,7 +382,7 @@ void Setup::build_pmm()
     // We'll start at the highest address to make possible a memory model
     // on which the application's logical and physical address spaces match.
 
-    Phy_Addr top_page = MMU::pages(si->bm.mem_top);
+    Phy_Addr top_page = MMU::pages(FREE_TOP);
 
     db<Setup>(TRC) << "Setup::build_pmm() [top=" << top_page << "]" << endl;
 
@@ -396,7 +444,7 @@ void Setup::build_pmm()
     si->pmm.sys_stack = top_page * sizeof(Page);
 
     // The memory allocated so far will "disappear" from the system as we set usr_mem_top as follows:
-    si->pmm.usr_mem_base = si->bm.mem_base;
+    si->pmm.usr_mem_base = MMU::align_page(FREE_BASE);
     si->pmm.usr_mem_top = top_page * sizeof(Page);
 
     // APPLICATION code segment
@@ -408,7 +456,7 @@ void Setup::build_pmm()
     si->pmm.app_data = top_page * sizeof(Page);
 
     // Free chunks (passed to MMU::init)
-    si->pmm.free1_base = MMU::align_page(Memory_Map::VECTOR_TABLE + sizeof(Page));
+    si->pmm.free1_base = MMU::align_page(FREE_BASE);
     si->pmm.free1_top = top_page * sizeof(Page); // we will free the stack here
 
     // Test if we didn't overlap SETUP and the boot image
@@ -537,7 +585,7 @@ void Setup::setup_app_pt()
 
     for(unsigned int i = 0; i < n_pts_code; i++)
         db<Setup>(INF) << "APPC_PT[" << &app_code_pt[i * MMU::PT_ENTRIES] << "]=" << *reinterpret_cast<Page_Table *>(&app_code_pt[i * MMU::PT_ENTRIES]) << endl;
-    for(unsigned int i = 0; i < n_pts_code; i++)
+    for(unsigned int i = 0; i < n_pts_data; i++)
         db<Setup>(INF) << "APPD_PT[" << &app_data_pt[i * MMU::PT_ENTRIES] << "]=" << *reinterpret_cast<Page_Table *>(&app_data_pt[i * MMU::PT_ENTRIES]) << endl;
 }
 
@@ -605,7 +653,7 @@ void Setup::setup_sys_pd()
     // Attach devices' memory at Memory_Map::IO
     assert((MMU::directory(MMU::align_directory(IO)) + n_pts) < (MMU::PD_ENTRIES - 1)); // check if it would overwrite the OS
     for(unsigned int i = MMU::directory(MMU::align_directory(IO)), j = 0; i < MMU::directory(MMU::align_directory(IO)) + n_pts; i++, j++)
-        sys_pd[i] = MMU::phy2pde((si->pmm.io_pts + j * sizeof(Page_Table)));
+        sys_pd[i] = MMU::phy2pde(si->pmm.io_pts + j * sizeof(Page_Table));
 
     // Attach the OS (i.e. sys_pt)
     n_pts = MMU::page_tables(MMU::pages(SYS_HEAP - SYS)); // SYS_HEAP is handled by Init_System
@@ -694,19 +742,16 @@ void Setup::load_parts()
 {
     db<Setup>(TRC) << "Setup::load_parts()" << endl;
 
-    // Ajust bi to its logical address
-    bi = static_cast<char *>(MMU::phy2log(bi));
-
     // Relocate System_Info
     if(sizeof(System_Info) > sizeof(Page))
         db<Setup>(WRN) << "System_Info is bigger than a page (" << sizeof(System_Info) << ")!" << endl;
-    if(Traits<Setup>::hysterically_debugged) {
-        db<Setup>(INF) << "Setup:BOOT_IMAGE: " << MMU::Translation(bi) << endl;
-        db<Setup>(INF) << "Setup:SYS_INFO[phy]: " << MMU::Translation(si) << endl;
-        db<Setup>(INF) << "Setup:SYS_INFO[log]: " << MMU::Translation(SYS_INFO) << endl;
-    }
-    memcpy(reinterpret_cast<System_Info *>(SYS_INFO), si, sizeof(System_Info));
+    bi = static_cast<char *>(MMU::phy2log(bi));
     si = reinterpret_cast<System_Info *>(SYS_INFO);
+    if(Traits<Setup>::hysterically_debugged) {
+        db<Setup>(INF) << "Setup:boot_info: " << MMU::Translation(bi) << endl;
+        db<Setup>(INF) << "Setup:system_info: " << MMU::Translation(si) << endl;
+    }
+    memcpy(si, __boot_time_system_info, sizeof(System_Info));
 
     // Load INIT
     if(si->lm.has_ini) {
@@ -796,12 +841,46 @@ void Setup::adjust_perms()
 void Setup::call_next()
 {
     // Check for next stage and obtain the entry point
-    Log_Addr ip = &_start;
+    Log_Addr ip;
+    Reg cpu_id = CPU::id();
+
+    if(Traits<System>::multitask) {
+        if(si->lm.has_ini) {
+            if(cpu_id == 0) {
+                db<Setup>(TRC) << "Executing system's global constructors ..." << endl;
+                reinterpret_cast<void (*)()>(reinterpret_cast<void *>(si->lm.sys_entry))();
+            }
+            ip = si->lm.ini_entry;
+        } else if(si->lm.has_sys)
+            ip = si->lm.sys_entry;
+        else
+            ip = si->lm.app_entry;
+
+        // Arrange a stack for each CPU to support stage transition
+        Log_Addr sp = SYS_STACK + Traits<Machine>::STACK_SIZE * (cpu_id + 1) - sizeof(long);
+
+        db<Setup>(TRC) << "Setup::call_next(ip=" << ip << ",sp=" << sp << ") => ";
+        if(si->lm.has_ini)
+            db<Setup>(TRC) << "INIT" << endl;
+        else if(si->lm.has_sys)
+            db<Setup>(TRC) << "SYSTEM" << endl;
+        else
+            db<Setup>(TRC) << "APPLICATION" << endl;
+
+        CPU::sp(sp);
+    } else
+        ip = &_start;
 
     db<Setup>(INF) << "SETUP ends here!" << endl;
 
     // Set SP and call next stage
     static_cast<void (*)()>(ip)();
+
+    if(Traits<System>::multitask && (cpu_id == 0)) {
+        // This will only happen when INIT was called and Thread was disabled
+        // Note we don't have the original stack here anymore!
+        reinterpret_cast<CPU::FSR *>(si->lm.app_entry)();
+    }
 
     // SETUP is now part of the free memory and this point should never be reached, but, just in case ... :-)
     db<Setup>(ERR) << "OS failed to init!" << endl;
@@ -844,10 +923,10 @@ void _reset()
         CPU::Reg cpsr = CPU::psr();
         cpsr &= ~CPU::FLAG_M;           // clear mode bits
         cpsr |= CPU::MODE_SVC;          // set supervisor flag
-        CPU::psrc(cpsr);                // enter supervisor mode
+        CPU::psr(cpsr);                 // enter supervisor mode
         CPU::Reg address = CPU::ra();
         CPU::elr_hyp(address);
-        CPU::tmp_to_psr();
+        CPU::tmp_to_cpsr();
     }
 
     // Configure a stack for SVC mode, which will be used until the first Thread is created
@@ -1067,27 +1146,33 @@ void _vector_table()
 
 void _reset()
 {
-    // Relocated the vector table, which has 4 entries for each of the 4 scenarios, all 128 bytes aligned, plus an 8 bytes pointer, totaling 2056 bytes
-    CPU::Reg * src = reinterpret_cast<CPU::Reg *>(&_vector_table);
-    CPU::Reg * dst = reinterpret_cast<CPU::Reg *>(Memory_Map::VECTOR_TABLE);
-    for(int i = 0; i < (2056 / 8); i++)
-        dst[i] = src[i];
-    // Set el1 vbar
-    CPU::vbar_el1(static_cast<CPU::Phy_Addr>(Memory_Map::VECTOR_TABLE));
+    if(CPU::id() == 0) {
+        // Relocated the vector table, which has 4 entries for each of the 4 scenarios, all 128 bytes aligned, plus an 8 bytes pointer, totaling 2056 bytes
+        CPU::Reg * src = reinterpret_cast<CPU::Reg *>(&_vector_table);
+        CPU::Reg * dst = reinterpret_cast<CPU::Reg *>(Memory_Map::VECTOR_TABLE);
+        for(int i = 0; i < (2056 / 8); i++)
+            dst[i] = src[i];
+        // Set el1 vbar
+        CPU::vbar_el1(static_cast<CPU::Phy_Addr>(Memory_Map::VECTOR_TABLE));
 
-    // Activate aarch64
-    CPU::hcr(CPU::EL1_AARCH64_EN | CPU::SWIO_HARDWIRED);
+        // Activate aarch64
+        CPU::hcr(CPU::EL1_AARCH64_EN | CPU::SWIO_HARDWIRED);
 
-    // We start at EL2, but must set EL1 SP for a smooth transition, including further exception/interrupt handling
-    CPU::spsr_el2(CPU::FLAG_D | CPU::FLAG_A | CPU::FLAG_I | CPU::FLAG_F | CPU::FLAG_EL1 | CPU::FLAG_SP_ELn);
-    CPU::Reg el1_addr = CPU::pc();
-    el1_addr += 16; // previous instruction, this instruction, and the next one;
-    CPU::elr_el2(el1_addr);
-    CPU::eret();
-    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1)); // set stack
+        // We start at EL2, but must set EL1 SP for a smooth transition, including further exception/interrupt handling
+        CPU::spsr_el2(CPU::FLAG_D | CPU::FLAG_A | CPU::FLAG_I | CPU::FLAG_F | CPU::FLAG_EL1 | CPU::FLAG_SP_ELn);
+        CPU::Reg el1_addr = CPU::pc();
+        el1_addr += 16; // previous instruction, this instruction, and the next one;
+        CPU::elr_el2(el1_addr);
+        CPU::eret();
+        CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1)); // set stack
 
-    // Clear the BSS (SETUP was linked to CRT0, but entry point didn't go through BSS clear)
-    Machine::clear_bss();
+        // Clear the BSS (SETUP was linked to CRT0, but entry point didn't go through BSS clear)
+        Machine::clear_bss();
+    } else {
+        // we want secondary cores to be held here.
+        while(true)
+            CPU::halt();
+    }
 
     _setup();
 }

@@ -193,9 +193,9 @@ cortex_IMG_SUFFIX	:= .img
 endif
 
 ifeq ($(MMOD),sifive_e)
-riscv_CC_FLAGS		:= -Wl, -mno-relax
-riscv_AS_FLAGS		:= 
-riscv_LD_FLAGS		:= --no-relax
+riscv_CC_FLAGS		:= -march=rv32gc -mabi=ilp32f -Wl, -mno-relax
+riscv_AS_FLAGS		:= -march=rv32gc -mabi=ilp32f
+riscv_LD_FLAGS		:= -m elf32lriscv_ilp32f --no-relax
 riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
 riscv_DEBUGGER		:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
@@ -206,11 +206,11 @@ riscv_IMG_SUFFIX	:= .img
 endif
 
 ifeq ($(MMOD),sifive_u)
-riscv_CC_FLAGS		:= -Wl, -mno-relax
-riscv_AS_FLAGS		:= 
-riscv_LD_FLAGS		:= --no-relax
-riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot -kernel 
-riscv_DEBUGGER  	:= $(COMP_PREFIX)gdb
+riscv_CC_FLAGS		:= -march=rv64gc -mabi=lp64d -Wl, -mno-relax -mcmodel=medany
+riscv_AS_FLAGS		:= -march=rv64gc -mabi=lp64d
+riscv_LD_FLAGS		:= -m elf64lriscv_lp64f --no-relax
+riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine virt -cpu rv64 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot -kernel 
+riscv_DEBUGGER		:= /usr/local/rv32/bin/riscv32-unknown-linux-gnu-gdb
 riscv_FLASHER		:= 
 riscv_MAGIC		:= --nmagic
 riscv_CODE_NAME		:= .init
@@ -229,23 +229,23 @@ atmega_CODE_NAME	:= .init
 atmega_DATA_NAME	:= .data
 atmega_IMG_SUFFIX	:= .hex
 
-MACH_CC_FLAGS	:= $($(MACH)_CC_FLAGS) -O -nostdinc --no-stack-protector --no-pie -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-address-of-packed-member
-MACH_CXX_FLAGS	:= $($(MACH)_CC_FLAGS) -O -std=c++14 -nostdinc --no-exceptions --no-rtti --no-use-cxa-atexit --no-unwind-tables --no-asynchronous-unwind-tables --no-stack-protector --no-pie --data-sections --function-sections -Wall -Werror -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-attribute-alias -Wno-placement-new -Wno-class-memaccess -Wno-address-of-packed-member
-MACH_AS_FLAGS	:= $($(MACH)_AS_FLAGS)
-MACH_LD_FLAGS	:= $($(MACH)_LD_FLAGS)
-MACH_CODE_NAME	:= $($(MACH)_CODE_NAME)
-MACH_DATA_NAME	:= $($(MACH)_DATA_NAME)
-MACH_EMULATOR	= $($(MACH)_EMULATOR)
-MACH_DEBUGGER	:= $(TERM) $($(MACH)_DEBUGGER) -ex "target remote:1235" -ex "set confirm off"
-MACH_FLASHER	= $($(MACH)_FLASHER)
-MACH_MAGIC	:= $($(MACH)_MAGIC)
-MACH_IMGSUFF	:= $($(MACH)_IMG_SUFFIX)
+MACH_CC_FLAGS		:= $($(MACH)_CC_FLAGS) -O -nostdinc --no-stack-protector --no-pie -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-address-of-packed-member
+MACH_CXX_FLAGS		:= $($(MACH)_CC_FLAGS) -O -std=c++14 -nostdinc --no-exceptions --no-rtti --no-use-cxa-atexit --no-unwind-tables --no-asynchronous-unwind-tables --no-stack-protector --no-pie --data-sections --function-sections -Wall -Werror -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-attribute-alias -Wno-placement-new -Wno-class-memaccess -Wno-address-of-packed-member
+MACH_AS_FLAGS		:= $($(MACH)_AS_FLAGS)
+MACH_LD_FLAGS		:= $($(MACH)_LD_FLAGS)
+MACH_CODE_NAME		:= $($(MACH)_CODE_NAME)
+MACH_DATA_NAME		:= $($(MACH)_DATA_NAME)
+MACH_EMULATOR		= $($(MACH)_EMULATOR)
+MACH_DEBUGGER		:= $(TERM) $($(MACH)_DEBUGGER) -ex "target remote:1235" -ex "set confirm off"
+MACH_FLASHER		= $($(MACH)_FLASHER)
+MACH_MAGIC		:= $($(MACH)_MAGIC)
+MACH_IMGSUFF		:= $($(MACH)_IMG_SUFFIX)
 
 ifeq ($(DEBUG),1)
-MACH_CC_FLAGS	:= -g -feliminate-unused-debug-symbols $(MACH_CC_FLAGS)
-MACH_CXX_FLAGS	:= -g -feliminate-unused-debug-symbols $(MACH_CXX_FLAGS)
-MACH_AS_FLAGS	:= -g $(MACH_AS_FLAGS)
-MACH_EMULATOR	= $(subst -m ,-gdb tcp::1235 -S -m ,$($(MACH)_EMULATOR))
+MACH_CC_FLAGS		:= -g -feliminate-unused-debug-symbols $(MACH_CC_FLAGS)
+MACH_CXX_FLAGS		:= -g -feliminate-unused-debug-symbols $(MACH_CXX_FLAGS)
+MACH_AS_FLAGS		:= -g $(MACH_AS_FLAGS)
+MACH_EMULATOR		= $(subst -m ,-gdb tcp::1235 -S -m ,$($(MACH)_EMULATOR))
 endif
 
 # Tools and flags to compile system tools

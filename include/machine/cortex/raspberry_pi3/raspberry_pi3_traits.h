@@ -10,7 +10,7 @@ __BEGIN_SYS
 class Machine_Common;
 template<> struct Traits<Machine_Common>: public Traits<Build>
 {
-    static const bool debugged = Traits<Build>::debugged;
+    static const bool debugged                  = Traits<Build>::debugged;
     static const bool emulated                  = Traits<Build>::EXPECTED_SIMULATION_TIME;
     static const bool armv7                     = (Traits<Build>::ARCHITECTURE == Traits<Build>::ARMv7);
 
@@ -45,10 +45,10 @@ public:
     static const unsigned int INIT              = library ? NOT_USED : 0x00200000;
     static const unsigned int PHY_MEM           = 0x00000000;   // 0 (max 1792 MB)
     static const unsigned int IO                = 0x70000000;   // 2 GB - 256 MB (max 247 MB)
-    static const unsigned int SYS               = armv7 ? 0xffc00000 : 0xf8000000;   // 4 GB - (armv7 ? 4 MB : 128 MB)
+    static const unsigned int SYS               = armv7 ? 0xff700000 : 0xf8000000;   // 4 GB - (armv7 ? 9 MB : 128 MB)
 
     // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = (armv7 ? 16 : 32) * 1024;
+    static const unsigned int STACK_SIZE        = (armv7 ? 64 : 256) * 1024;
     static const unsigned int MAX_THREADS       = 16;
     static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;
 
@@ -81,7 +81,7 @@ template<> struct Traits<UART>: public Traits<Machine_Common>
 
     // CLOCK_DIVISOR is hard coded in ps7_init.tcl
     static const unsigned int CLOCK_DIVISOR = 4;
-    static const unsigned int CLOCK = Traits<Machine>::IO_PLL_CLOCK/CLOCK_DIVISOR;
+    static const unsigned int CLOCK = Traits<Machine>::IO_PLL_CLOCK / CLOCK_DIVISOR;
 
     static const unsigned int DEF_UNIT = 0;
     static const unsigned int DEF_BAUD_RATE = 115200;

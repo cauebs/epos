@@ -21,7 +21,7 @@ public:
     static const unsigned int IRQS = 16;
 
     // Interrupts (mcause with interrupt = 1)
-    enum : unsigned int {
+    enum : unsigned long {
         IRQ_USR_SOFT            = 0,
         IRQ_SUP_SOFT            = 1,
         IRQ_MAC_SOFT            = 3,
@@ -31,7 +31,7 @@ public:
         IRQ_USR_EXT             = 8,
         IRQ_SUP_EXT             = 9,
         IRQ_MAC_EXT             = 11,
-        INTERRUPT               = 1UL << 31,
+        INTERRUPT               = 1UL << (Traits<CPU>::WORD_SIZE - 1),
         INT_MASK                = ~INTERRUPT
 
     };
@@ -84,8 +84,6 @@ class IC: private IC_Common, private CLINT
 private:
     typedef CPU::Reg Reg;
 
-    static const bool multitask = Traits<System>::multitask;
-
 public:
     static const unsigned int EXCS = CPU::EXCEPTIONS;
     static const unsigned int IRQS = CLINT::IRQS;
@@ -95,7 +93,7 @@ public:
     using IC_Common::Interrupt_Handler;
 
     enum {
-        INT_SYS_TIMER   = EXCS + (multitask ? IRQ_SUP_TIMER : IRQ_MAC_TIMER)
+        INT_SYS_TIMER   = EXCS + IRQ_MAC_TIMER
     };
 
 public:
@@ -114,10 +112,7 @@ public:
 
     static void enable() {
         db<IC>(TRC) << "IC::enable()" << endl;
-        if(multitask)
-            CPU::sie(CPU::SSI | CPU::STI | CPU::SEI);
-        else
-            CPU::mie(CPU::MSI | CPU::MTI | CPU::MEI);
+        CPU::mie(CPU::MSI | CPU::MTI | CPU::MEI);
     }
 
     static void enable(Interrupt_Id i) {
@@ -129,10 +124,7 @@ public:
 
     static void disable() {
         db<IC>(TRC) << "IC::disable()" << endl;
-        if(multitask)
-            CPU::siec(CPU::SSI | CPU::STI | CPU::SEI);
-        else
-            CPU::miec(CPU::MSI | CPU::MTI | CPU::MEI);
+        CPU::miec(CPU::MSI | CPU::MTI | CPU::MEI);
 }
 
     static void disable(Interrupt_Id i) {
@@ -144,9 +136,9 @@ public:
 
     static Interrupt_Id int_id() {
         // Id is retrieved from [m|s]cause even if mip has the equivalent bit up, because only [m|s]cause can tell if it is an interrupt or an exception
-        Reg id = (multitask) ? CPU::scause() : CPU::mcause();
+        Reg id = CPU::mcause();
         if(id & INTERRUPT)
-            return (id & INT_MASK) + EXCS;
+            return irq2int(id & INT_MASK);
         else
             return (id & INT_MASK);
     }

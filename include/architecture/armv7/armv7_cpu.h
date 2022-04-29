@@ -28,7 +28,7 @@ public:
     {
     public:
         Context() {}
-        Context(Reg psr, Log_Addr  lr, Log_Addr pc): _psr(psr), _lr(lr), _pc(pc) {
+        Context(Reg psr, Log_Addr pc, Log_Addr lr): _psr(psr), _lr(lr), _pc(pc) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
                 _r0 = 0; _r1 = 1; _r2 = 2; _r3 = 3; _r4 = 4; _r5 = 5; _r6 = 6; _r7 = 7; _r8 = 8; _r9 = 9; _r10 = 10; _r11 = 11; _r12 = 12;
             }
@@ -224,7 +224,7 @@ public:
     {
     public:
         Context() {}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): ARMv7::Context(FLAG_THUMB, exit | thumb, entry | thumb) {}
+        Context(Log_Addr usp, Log_Addr entry, Log_Addr exit): ARMv7::Context(FLAG_THUMB, entry | thumb, exit | thumb) {}
 
         static void pop(bool interrupt = false, bool stay_in_svc = false);
         static void push(bool interrupt = false, bool stay_in_svc = false);
@@ -417,14 +417,16 @@ public:
     {
     public:
         Context() {}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): Multitask_Context(usp, exit), ARMv7::Context(multitask ? (usp ? MODE_USR : MODE_SVC) : MODE_SVC, exit, entry) {}
+        Context(Log_Addr usp, Log_Addr entry, Log_Addr exit): Multitask_Context(usp, exit), ARMv7::Context((multitask && usp) ? MODE_USR : MODE_SVC, entry, exit) {}
 
-        static void pop(bool interrupt = false, bool stay_in_svc = false);
-        static void push(bool interrupt = false, bool stay_in_svc = false);
+        static void pop(bool interrupt = false, bool stay_in_svc = true);
+        static void push(bool interrupt = false, bool stay_in_svc = true);
+        static void first_dispatch() __attribute__((naked));
 
         friend OStream & operator<<(OStream & os, const Context & c) {
             os << hex
-               << "{r0="  << c._r0
+               << "{psr=" << c._psr
+               << ",r0="  << c._r0
                << ",r1="  << c._r1
                << ",r2="  << c._r2
                << ",r3="  << c._r3
@@ -440,7 +442,6 @@ public:
                << ",sp="  << &c
                << ",lr="  << c._lr
                << ",pc="  << c._pc
-               << ",psr=" << c._psr
                << ",usp=" << c._usp
                << ",ulr=" << c._ulr
                << "}" << dec;
@@ -508,11 +509,9 @@ public:
     static Reg  psr() { Reg r; ASM("mrs %0, cpsr" :  "=r"(r) : : ); return r; }
     static void psr(Reg r) {   ASM("msr cpsr, %0" : : "r"(r) : "cc"); }
 
-    static Reg  psrc() { Reg r; ASM("mrs %0, cpsr_c" :  "=r"(r) : : ); return r; }
-    static void psrc(Reg r) {   ASM("msr cpsr_c, %0" : : "r"(r): ); }
-
-    static void psr_to_tmp() { ASM("mrs r12, cpsr" : : : "r12"); }
-    static void tmp_to_psr() { ASM("msr cpsr, r12" : : : "cc"); }
+    static void psr_to_tmp()  { ASM("mrs r12, cpsr" : : : "r12"); }
+    static void tmp_to_cpsr() { ASM("msr cpsr, r12" : : : "cc"); }
+    static void tmp_to_spsr() { ASM("msr spsr, r12" : : : "cc"); }
 
     static void mode(unsigned int m) { ASM("msr cpsr_c, %0" : : "i"(m | FLAG_F | FLAG_I) : "cc"); }
 
@@ -579,12 +578,12 @@ inline void ARMv7_A::Context::push(bool interrupt, bool stay_in_svc)
          else
              ASM("stmfd sp!, {r0-r3, r12, lr, pc}");
     } else {
-         ASM("stmfd sp!, {r0-r12, lr, pc}");    // pc will be replaced later in context switch by 1f
+         ASM("stmfd sp!, {r0-r12, lr, pc}");    // PC will be replaced later in context switch by "1f"
          ASM("adr r12, 1f");                    // calculate the return address using the saved r12 as a temporary
-         ASM("str r12, [sp, #56]");             // save calculated PC
+         ASM("str r12, [sp, #56]");             // overwrite PC with the calculated address
          psr_to_tmp();
-         ASM("push {r12}");			// push psr
-         ASM("sub sp, #8");                // skip ulr and usp
+         ASM("push {r12}");			// push PSR
+         ASM("sub sp, #8");                     // skip ULR and USP
          if(save_fpu)
              fpu_save();
     }
@@ -594,16 +593,21 @@ inline void ARMv7_A::Context::pop(bool interrupt, bool stay_in_svc)
 {
     if(interrupt) {
         if(stay_in_svc)
-            ASM("ldmfd sp!, {r0-r3, r12, lr}");
+            ASM("ldmfd sp!, {r0-r3, r12, lr}");         // pop R0, R1, R3, R12 and LR (A[T]PCS)
         else
-            ASM("ldmfd sp!, {r0-r3, r12, lr, pc}^");    // including PC in ldmfd cause a mode change to the mode given by PSR (the mode the CPU was before the interrupt)
+            ASM("ldmfd sp!, {r0-r3, r12, lr, pc}^");    // pop R0, R1, R3, R12, LR and PC and jump to PC (including PC and "^" in ldmfd causes a mode change to the mode given by PSR (the mode the CPU was before the interrupt))
     } else {
         if(save_fpu)
             fpu_restore();
-        ASM("add sp, #8"); 				// skip ulr and usp
-        ASM("pop {r12}");				// pop psr
-        tmp_to_psr();
-        ASM("ldmfd sp!, {r0-r12, lr, pc}^");
+        ASM("add sp, #8"); 				// skip ULR and USP
+        ASM("pop {r12}");				// pop PSR
+        if(stay_in_svc) {
+            tmp_to_cpsr();
+            ASM("ldmfd sp!, {r0-r12, lr, pc}");         // pop R0-R12, LR and PC but don't jump
+        } else {
+            tmp_to_spsr();
+            ASM("ldmfd sp!, {r0-r12, lr, pc}^");        // pop R0-R12, LR and PC and jump to PC
+        }
     }
 }
 
@@ -654,7 +658,7 @@ public:
     {
     public:
         Context() {}
-        Context(Log_Addr entry, Log_Addr exit, Log_Addr usp): Base::Context(entry, exit, usp) {}
+        Context(Log_Addr usp, Log_Addr entry, Log_Addr exit): Base::Context(usp, entry, exit) {}
 
         void save() volatile __attribute__ ((naked));
         void load() const volatile __attribute__ ((naked));
@@ -698,7 +702,7 @@ public:
     template<typename ... Tn>
     static Context * init_stack(Log_Addr usp, Log_Addr sp, void (* exit)(), int (* entry)(Tn ...), Tn ... an) {
         sp -= sizeof(Context);
-        Context * ctx = new(sp) Context(entry, exit, usp); // init_stack is called with usp = 0 for kernel threads
+        Context * ctx = new(sp) Context(usp, entry, exit); // init_stack is called with USP = 0 for kernel threads
         init_stack_helper(&ctx->_r0, an ...);
         return ctx;
     }
@@ -729,8 +733,6 @@ private:
         init_stack_helper(sp + sizeof(Head), tail ...);
     }
     static void init_stack_helper(Log_Addr sp) {}
-
-    static void context_load_helper();
 
     static void init();
 

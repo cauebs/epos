@@ -10,7 +10,11 @@ __BEGIN_SYS
 
 struct Memory_Map
 {
-    enum {
+private:
+    static const bool multitask = Traits<System>::multitask;
+
+public:
+    enum : unsigned long {
         NOT_USED        = Traits<Machine>::NOT_USED,
 
         // Physical Memory
@@ -18,7 +22,10 @@ struct Memory_Map
         RAM_TOP         = Traits<Machine>::RAM_TOP,
         MIO_BASE        = Traits<Machine>::MIO_BASE,
         MIO_TOP         = Traits<Machine>::MIO_TOP,
-        BOOT_STACK      = RAM_BASE + 512 * 1024 - sizeof(long), // RAM_BASE + 512 KB - 4 (will be used as the stack pointer, not the base)
+        INT_M2S         = RAM_TOP + 1 - 4096,   // the last page is used by the _int_m2s() interrupt forwarder installed by SETUP
+        BOOT_STACK      = INT_M2S - Traits<Build>::CPUS * Traits<Machine>::STACK_SIZE, // will be used as the stack's base, not the stack pointer
+        FREE_BASE       = RAM_BASE,
+        FREE_TOP        = BOOT_STACK,
 
         // Memory-mapped devices
         TEST_BASE       = 0x00100000, // SiFive test engine
@@ -28,28 +35,32 @@ struct Memory_Map
         TIMER_BASE      = 0x02004000, // CLINT Timer
         PLIIC_CPU_BASE  = 0x0c000000, // SiFive PLIC
 
-        // Logical Address Space
-        BOOT            = Traits<System>::multitask ? Traits<Machine>::BOOT : NOT_USED,
+        // Physical Memory at Boot
+        BOOT            = Traits<Machine>::BOOT,
         IMAGE           = Traits<Machine>::IMAGE,
-        SETUP           = Traits<System>::multitask ? Traits<Machine>::SETUP : NOT_USED,
-        INIT            = Traits<System>::multitask ? Traits<Machine>::INIT : NOT_USED,
+        SETUP           = Traits<Machine>::SETUP,
 
-        APP_LOW         = Traits<System>::multitask ? Traits<Machine>::APP_LOW : Traits<Machine>::SETUP,
-        APP_CODE        = APP_LOW,
-        APP_DATA        = Traits<System>::multitask ? APP_LOW + 4 * 1024 * 1024 : APP_LOW,
+        // Logical Address Space
+        APP_LOW         = Traits<Machine>::APP_LOW,
         APP_HIGH        = Traits<Machine>::APP_HIGH,
+        APP_CODE        = Traits<Machine>::APP_CODE,
+        APP_DATA        = Traits<Machine>::APP_DATA,
+
+        INIT            = Traits<Machine>::INIT,
 
         PHY_MEM         = Traits<Machine>::PHY_MEM,
+
         IO              = Traits<Machine>::IO,
 
         SYS             = Traits<Machine>::SYS,
-        SYS_CODE        = Traits<System>::multitask ? SYS + 0x00000000 : NOT_USED,
-        SYS_INFO        = Traits<System>::multitask ? SYS + 0x00100000 : NOT_USED,
-        SYS_PT          = Traits<System>::multitask ? SYS + 0x00101000 : NOT_USED,
-        SYS_PD          = Traits<System>::multitask ? SYS + 0x00102000 : NOT_USED,
-        SYS_DATA        = Traits<System>::multitask ? SYS + 0x00103000 : NOT_USED,
-        SYS_STACK       = Traits<System>::multitask ? SYS + 0x00200000 : NOT_USED,
-        SYS_HEAP        = Traits<System>::multitask ? SYS + 0x00400000 : NOT_USED
+        SYS_CODE        = multitask ? SYS + 0x00000000 : NOT_USED,
+        SYS_INFO        = multitask ? SYS + 0x00100000 : NOT_USED,
+        SYS_PT          = multitask ? SYS + 0x00101000 : NOT_USED,
+        SYS_PD          = multitask ? SYS + 0x00102000 : NOT_USED,
+        SYS_DATA        = multitask ? SYS + 0x00103000 : NOT_USED,
+        SYS_STACK       = multitask ? SYS + 0x00200000 : NOT_USED,
+        SYS_HEAP        = multitask ? SYS + 0x00400000 : NOT_USED,
+        SYS_HIGH        = multitask ? SYS + 0x007fffff : NOT_USED
     };
 };
 

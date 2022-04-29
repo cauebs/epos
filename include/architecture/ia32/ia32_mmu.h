@@ -18,10 +18,12 @@ private:
 
     static const bool colorful = Traits<MMU>::colorful;
     static const unsigned int COLORS = Traits<MMU>::COLORS;
-    static const unsigned int RAM_BASE = Memory_Map::RAM_BASE;
-    static const unsigned int APP_LOW = Memory_Map::APP_LOW;
-    static const unsigned int PHY_MEM = Memory_Map::PHY_MEM;
-    static const unsigned int SYS = Memory_Map::SYS;
+    static const unsigned int RAM_BASE  = Memory_Map::RAM_BASE;
+    static const unsigned int APP_LOW   = Memory_Map::APP_LOW;
+    static const unsigned int APP_HIGH  = Memory_Map::APP_HIGH;
+    static const unsigned int PHY_MEM   = Memory_Map::PHY_MEM;
+    static const unsigned int SYS       = Memory_Map::SYS;
+    static const unsigned int SYS_HIGH  = Memory_Map::SYS_HIGH;
 
 public:
     // Page Flags
@@ -54,21 +56,21 @@ public:
 
     public:
         Page_Flags() {}
-        Page_Flags(unsigned int f) : _flags(f) {}
-        Page_Flags(const Flags & f) : _flags(PRE | ACC |
-                                             ((f & Flags::RW)  ? RW  : 0) |
-                                             ((f & Flags::USR) ? USR : 0) |
-                                             ((f & Flags::CWT) ? PWT : 0) |
-                                             ((f & Flags::CD)  ? PCD : 0) |
-                                             ((f & Flags::CT)  ? CT  : 0) |
-                                             ((f & Flags::IO)  ? PCI : 0) ) {}
+        Page_Flags(unsigned long f) : _flags(f) {}
+        Page_Flags(Flags f) : _flags(PRE | ACC |
+                                    ((f & Flags::RW)  ? RW  : 0) |
+                                    ((f & Flags::USR) ? USR : 0) |
+                                    ((f & Flags::CWT) ? PWT : 0) |
+                                    ((f & Flags::CD)  ? PCD : 0) |
+                                    ((f & Flags::CT)  ? CT  : 0) |
+                                    ((f & Flags::IO)  ? PCI : 0) ) {}
 
-        operator unsigned int() const { return _flags; }
+        operator unsigned long() const { return _flags; }
 
         friend OStream & operator<<(OStream & os, const Page_Flags & f) { os << hex << f._flags; return os; }
 
     private:
-        unsigned int _flags;
+        unsigned long _flags;
     };
 
     // Page Table
@@ -207,7 +209,13 @@ public:
     {
     public:
         Directory() : _pd(calloc(1, WHITE)), _free(true) {
-            for(unsigned int i = directory(PHY_MEM); i < PD_ENTRIES; i++)
+            if(PHY_MEM < APP_LOW)
+                for(unsigned int i = directory(PHY_MEM); i < directory(APP_LOW); i++)
+                    (*_pd)[i] = (*_master)[i];
+            else
+                for(unsigned int i = directory(APP_LOW); i < directory(PHY_MEM); i++)
+                    (*_pd)[i] = (*_master)[i];
+            for(unsigned int i = directory(SYS); i <= directory(SYS_HIGH); i++)
                 (*_pd)[i] = (*_master)[i];
         }
 
@@ -220,7 +228,7 @@ public:
         void activate() const { MMU::pd(_pd); }
 
         Log_Addr attach(const Chunk & chunk, unsigned int from = directory(APP_LOW)) {
-            for(unsigned int i = from; (i + chunk.pts()) <= PD_ENTRIES; i++)
+            for(unsigned int i = from; (i + chunk.pts()) <= directory(APP_HIGH); i++)
                 if(attach(i, chunk.pt(), chunk.pts(), chunk.flags()))
                     return i << DIRECTORY_SHIFT;
             return Log_Addr(false);
@@ -423,7 +431,7 @@ public:
     }
 
 private:
-    static Phy_Addr pd() { return CPU::pd() ; }
+    static Phy_Addr pd() { return CPU::pd(); }
     static void pd(Phy_Addr pd) { CPU::pd(pd); }
 
     static void flush_tlb() { CPU::flush_tlb(); }

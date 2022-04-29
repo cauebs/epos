@@ -172,8 +172,4 @@ constexpr OStream::Bin bin;
 
 __END_UTIL
 
-__BEGIN_SYS
-extern OStream kout, kerr;
-__END_SYS
-
 #endif
