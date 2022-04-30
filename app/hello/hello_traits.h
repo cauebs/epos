@@ -130,7 +130,7 @@ template<> struct Traits<Thread>: public Traits<Build>
     static const bool simulate_capacity = false;
 
     typedef FCFS Criterion;
-    static const unsigned int QUANTUM = 10000; // us
+    static const unsigned int QUANTUM = 500000; // us
 };
 
 template<> struct Traits<Scheduler<Thread>>: public Traits<Build>

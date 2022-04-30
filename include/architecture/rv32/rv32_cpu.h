@@ -282,7 +282,7 @@ public:
         return old;
     }
 
-    static void smp_barrier(unsigned long cores = cores()) { CPU_Common::smp_barrier<&finc>(cores, id()); }
+    static void smp_barrier(unsigned long cores = CPU::cores()) { CPU_Common::smp_barrier<&finc>(cores, id()); }
 
     static void flush_tlb() {         ASM("sfence.vma"    : :           : "memory"); }
     static void flush_tlb(Reg addr) { ASM("sfence.vma %0" : : "r"(addr) : "memory"); }
@@ -419,28 +419,32 @@ private:
 
 inline void CPU::Context::push(bool interrupt)
 {
-    ASM("       addi    sp, sp, %0              \n" : : "i"(-sizeof(Context))); // adjust sp for the pushes below
+    ASM("       addi    sp, sp, %0              \n" : : "i"(-sizeof(Context))); // adjust SP for the pushes below
 
-if(interrupt)
-  if(multitask)
+if(interrupt) {
+  if(multitask) {
     ASM("       csrr    x3, sepc                \n"
-        "       sw      x3,     4(sp)           \n");   // push sepc as pc on interrupts
-  else
+        "       sw      x3,     4(sp)           \n");   // push SEPC as PC on interrupts
+  } else {
     ASM("       csrr    x3, mepc                \n"
-        "       sw      x3,     4(sp)           \n");   // push mecp as pc on interrupts
-else
-    ASM("       sw      x1,     4(sp)           \n");   // push lr as pc on context switches
+        "       sw      x3,     4(sp)           \n");   // push MEPC as PC on interrupts
+  }
+} else {
+    ASM("       sw      x1,     4(sp)           \n");   // push RA as PC on context switches
+}
 
-if(!interrupt && multitask)
+if(!interrupt && multitask) {
     ASM("       li      x3, 1 << 8              \n"
         "       csrs    sstatus, x3             \n");   // set SPP_S inside the kernel; the push(true) on IC::entry() has already saved the correct value to eventually return to the application
-if(multitask)
-    ASM("       csrr    x3, sstatus             \n");
-else
-    ASM("       csrr    x3, mstatus             \n");
+}
 
-    ASM("       sw      x3,     8(sp)           \n"     // push st
-        "       sw      x1,    12(sp)           \n"     // push ra
+if(multitask) {
+    ASM("       csrr    x3, sstatus             \n");
+} else {
+    ASM("       csrr    x3, mstatus             \n");
+}
+    ASM("       sw      x3,     8(sp)           \n"     // push ST
+        "       sw      x1,    12(sp)           \n"     // push RA
         "       sw      x5,    16(sp)           \n"     // push x5-x31
         "       sw      x6,    20(sp)           \n"
         "       sw      x7,    24(sp)           \n"
@@ -472,20 +476,28 @@ else
 
 inline void CPU::Context::pop(bool interrupt)
 {
-if(multitask)
-    ASM("       lw       x3, 0(sp)              \n"     // pop usp
-        "       csrw     sscratch, x3           \n");   // sscratch = usp (sscratch holds ksp in user-land and usp in kernel; usp = 0 for kernel threads)
+if(multitask) {
+    ASM("       lw       x3, 0(sp)              \n"     // pop USP
+        "       csrw     sscratch, x3           \n");   // sscratch = USP (sscratch holds ksp in user-land and USP in kernel; USP = 0 for kernel threads)
+}
 
-    ASM("       lw       x3, 4(sp)              \n");   // pop pc
-if(interrupt)
-    ASM("       add      x3, x3, a0             \n");   // a0 is set by exception handlers to adjust [m|s]sepc to point to the next instruction if needed
-if(multitask)
-    ASM("       csrw     sepc, x3               \n");   // sepc = pc
-else
-    ASM("       csrw     mepc, x3               \n");   // mepc = pc
+    ASM("       lw       x3, 4(sp)              \n");   // pop PC
+if(interrupt) {
+    ASM("       add      x3, x3, a0             \n");   // a0 is set by exception handlers to adjust [M|S]EPC to point to the next instruction if needed
+}
+if(multitask) {
+    ASM("       csrw     sepc, x3               \n");   // SEPC = PC
+} else {
+    ASM("       csrw     mepc, x3               \n");   // MEPC = PC
+}
 
-    ASM("       lw       x3,    8(sp)           \n"     // pop st to x3
-        "       lw       x1,   12(sp)           \n"     // pop ra
+    ASM("       lw       x3,    8(sp)           \n");   // pop ST into x3 (tmp)
+if(!interrupt & !multitask) {
+    ASM("       li      a0, 3 << 11             \n"
+        "       or      x3, x3, a0              \n");   // mstatus.MPP is automatically cleared on mret, so we reset it to MPP_M here
+}
+
+    ASM("       lw       x1,   12(sp)           \n"     // pop RA
         "       lw       x5,   16(sp)           \n"     // pop x5-x31
         "       lw       x6,   20(sp)           \n"
         "       lw       x7,   24(sp)           \n"
@@ -513,17 +525,15 @@ else
         "       lw      x29,  112(sp)           \n"
         "       lw      x30,  116(sp)           \n"
         "       lw      x31,  120(sp)           \n"
-        "       addi    sp, sp, %0              \n" : : "i"(sizeof(Context))); // complete the pops above by adjusting sp
+        "       addi    sp, sp, %0              \n" : : "i"(sizeof(Context))); // complete the pops above by adjusting SP
 
-if(multitask)
-    ASM("       csrw    sstatus, x3             \n");   // sstatus = st
-else
-    ASM("       csrw    mstatus, x3             \n");   // mstatus = st
-if(!interrupt & !multitask)
-    ASM("       li      x3, 3 << 11             \n"
-        "       csrs    mstatus, x3             \n");   // mstatus.MPP is automatically cleared on mret, so we reset it to MPP_M here
+if(multitask) {
+    ASM("       csrw    sstatus, x3             \n");   // sstatus = ST
+} else {
+    ASM("       csrw    mstatus, x3             \n");   // mstatus = ST
+}
 
-if(multitask && interrupt)
+if(multitask && interrupt) {
     // swap(ksp, usp)
     ASM("       andi    x3, x3, 1 << 8          \n"
         "       bne     x3, zero, 1f            \n"
@@ -531,6 +541,7 @@ if(multitask && interrupt)
         "       csrw    sscratch, sp            \n"
         "       mv      sp, x3                  \n"
         "1:                                     \n");
+}
 }
 
 inline CPU::Reg64 htole64(CPU::Reg64 v) { return CPU::htole64(v); }

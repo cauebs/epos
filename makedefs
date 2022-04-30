@@ -229,8 +229,8 @@ atmega_CODE_NAME	:= .init
 atmega_DATA_NAME	:= .data
 atmega_IMG_SUFFIX	:= .hex
 
-MACH_CC_FLAGS		:= $($(MACH)_CC_FLAGS) -O -nostdinc --no-stack-protector --no-pie -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-address-of-packed-member
-MACH_CXX_FLAGS		:= $($(MACH)_CC_FLAGS) -O -std=c++14 -nostdinc --no-exceptions --no-rtti --no-use-cxa-atexit --no-unwind-tables --no-asynchronous-unwind-tables --no-stack-protector --no-pie --data-sections --function-sections -Wall -Werror -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-attribute-alias -Wno-placement-new -Wno-class-memaccess -Wno-address-of-packed-member
+MACH_CC_FLAGS		:= $($(MACH)_CC_FLAGS) -O -nostdinc --no-stack-protector --no-pie -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-address-of-packed-member -Wno-stringop-overflow
+MACH_CXX_FLAGS		:= $($(MACH)_CC_FLAGS) -O -std=c++14 -nostdinc --no-exceptions --no-rtti --no-use-cxa-atexit --no-unwind-tables --no-asynchronous-unwind-tables --no-stack-protector --no-pie --data-sections --function-sections -Wall -Werror -Wno-builtin-declaration-mismatch -Wno-array-bounds -Wno-attribute-alias -Wno-placement-new -Wno-class-memaccess -Wno-address-of-packed-member -Wno-stringop-overflow
 MACH_AS_FLAGS		:= $($(MACH)_AS_FLAGS)
 MACH_LD_FLAGS		:= $($(MACH)_LD_FLAGS)
 MACH_CODE_NAME		:= $($(MACH)_CODE_NAME)
