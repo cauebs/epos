@@ -105,7 +105,7 @@ public:
         // Contexts are loaded with [m|s]ret, which gets pc from [m|s]epc and updates some bits of [m|s]status, that's why _st is initialized with [M|S]PIE and [M|S]PP
         // Kernel threads are created with usp = 0 and have SPP_S set
         // Dummy contexts for the first execution of each thread (both kernel and user) are created with exit = 0 and SPIE cleared (no interrupts until the second context is popped)
-        Context(Log_Addr entry, Log_Addr exit): _usp(0), _pc(entry), _st(multitask ? ((exit ? SPIE : 0) | SPP_S | SUM) : ((exit ? MPIE : 0) | MPP_M)), _x1(exit) {
+        Context(Log_Addr entry, Log_Addr exit): _usp(0), _pc(entry), _st((exit ? MPIE : 0) | MPP_M), _x1(exit) {
             if(Traits<Build>::hysterically_debugged || Traits<Thread>::trace_idle) {
                                                                         _x5 =  5;  _x6 =  6;  _x7 =  7;  _x8 =  8;  _x9 =  9;
                 _x10 = 10; _x11 = 11; _x12 = 12; _x13 = 13; _x14 = 14; _x15 = 15; _x16 = 16; _x17 = 17; _x18 = 18; _x19 = 19;
@@ -332,7 +332,7 @@ public:
     static void a1(Reg r) {  ASM("mv a1, %0" : : "r"(r) :); }
 
     static void ecall() { ASM("ecall"); }
-    static void iret() { multitask ? sret() : mret(); }
+    static void iret() { mret(); }
 
     // Machine mode
     static void mint_enable()  { ASM("csrsi mstatus, %0" : : "i"(MIE) : "cc"); }
@@ -493,7 +493,7 @@ if(multitask) {
 
     ASM("       lw       x3,    8(sp)           \n");   // pop ST into x3 (tmp)
 if(!interrupt & !multitask) {
-    ASM("       li      a0, 3 << 11             \n"
+    ASM("       li      a0, 3 << 11             \n"     // use a0 as a second TMP, since it will be restored later
         "       or      x3, x3, a0              \n");   // mstatus.MPP is automatically cleared on mret, so we reset it to MPP_M here
 }
 
