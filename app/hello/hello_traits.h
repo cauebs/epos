@@ -12,7 +12,7 @@ template<> struct Traits<Build>: public Traits_Tokens
     static const unsigned int MODE = LIBRARY;
     static const unsigned int ARCHITECTURE = RV32;
     static const unsigned int MACHINE = RISCV;
-    static const unsigned int MODEL = SiFive_E;
+    static const unsigned int MODEL = SiFive_E; 
     static const unsigned int CPUS = 1;
     static const unsigned int NODES = 1; // (> 1 => NETWORKING)
     static const unsigned int EXPECTED_SIMULATION_TIME = 60; // s (0 => not simulated)
