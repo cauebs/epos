@@ -53,6 +53,9 @@ private:
         IP_RXWM = 1,
     };
 
+    Reg8 _rx_buffer;
+    bool _rx_buffer_filled = false;
+
 public:
     using UART_Common::NONE;
     using UART_Common::EVEN;
@@ -92,6 +95,10 @@ public:
     }
 
     Reg8 rxd() { 
+        if (_rx_buffer_filled) {
+            _rx_buffer_filled = false;
+            return _rx_buffer;
+        }
         return reg(RXD);
     }
     void txd(Reg8 c) { 
@@ -99,7 +106,18 @@ public:
     }
 
     bool rxd_empty() {
-        return (reg(RXD) & (1 << RXD_EMPTY));
+        if (_rx_buffer_filled) {
+            return false;
+        }
+
+        auto received = reg(RXD);
+        if (received & (1 << RXD_EMPTY)) {
+            return true;
+        }
+
+        _rx_buffer = Reg8(received);
+        _rx_buffer_filled = true;
+        return false;
     }
 
     bool txd_full() {
