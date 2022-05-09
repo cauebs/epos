@@ -210,7 +210,7 @@ riscv_CC_FLAGS		:= -march=rv64gc -mabi=lp64d -Wl, -mno-relax -mcmodel=medany
 riscv_AS_FLAGS		:= -march=rv64gc -mabi=lp64d
 riscv_LD_FLAGS		:= -m elf64lriscv_lp64f --no-relax
 riscv_EMULATOR		= qemu-system-riscv64 $(QEMU_DEBUG) -machine virt -cpu rv64 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot -kernel 
-riscv_DEBUGGER		:= /usr/local/rv32/bin/riscv32-unknown-linux-gnu-gdb
+riscv_DEBUGGER		:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
 riscv_MAGIC		:= --nmagic
 riscv_CODE_NAME		:= .init
