@@ -76,7 +76,7 @@ template <> struct Traits<UART>: public Traits<Machine_Common>
     static const unsigned int CLOCK = REFERENCE_CLOCK/CLOCK_DIVISOR;
 
     static const unsigned int DEF_UNIT = 1;
-    static const unsigned int DEF_BAUD_RATE = 115200;
+    static const unsigned int DEF_BAUD_RATE = 31250;
     static const unsigned int DEF_DATA_BITS = 8;
     static const unsigned int DEF_PARITY = 0; // none
     static const unsigned int DEF_STOP_BITS = 1;
