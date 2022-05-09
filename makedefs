@@ -196,7 +196,7 @@ ifeq ($(MMOD),sifive_e)
 riscv_CC_FLAGS		:= -march=rv32gc -mabi=ilp32f -Wl, -mno-relax
 riscv_AS_FLAGS		:= -march=rv32gc -mabi=ilp32f
 riscv_LD_FLAGS		:= -m elf32lriscv_ilp32f --no-relax
-riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine virt -cpu rv32 -smp $(CPUS) -m $(MEM_SIZE)k -serial mon:stdio -bios none -nographic -no-reboot $(BOOT_ROM) -kernel 
+riscv_EMULATOR		= qemu-system-riscv32 $(QEMU_DEBUG) -machine sifive_u -cpu rv32 -smp 2 -m $(MEM_SIZE)k -serial null -serial mon:stdio -bios none -nographic -no-reboot  -kernel 
 riscv_DEBUGGER		:= $(COMP_PREFIX)gdb
 riscv_FLASHER		:= 
 riscv_MAGIC		:= --nmagic
