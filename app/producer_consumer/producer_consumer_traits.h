@@ -96,7 +96,7 @@ __BEGIN_SYS
 template<> struct Traits<Application>: public Traits<Build>
 {
     static const unsigned int STACK_SIZE = Traits<Machine>::STACK_SIZE;
-    static const unsigned int HEAP_SIZE = Traits<Machine>::HEAP_SIZE;
+    static const unsigned int HEAP_SIZE = (MODEL == SiFive_E) ? Traits<Machine>::STACK_SIZE : Traits<Machine>::HEAP_SIZE;
     static const unsigned int MAX_THREADS = Traits<Machine>::MAX_THREADS;
 };
 
@@ -106,7 +106,7 @@ template<> struct Traits<System>: public Traits<Build>
     static const bool multithread = (Traits<Build>::CPUS > 1) || (Traits<Application>::MAX_THREADS > 1);
     static const bool multitask = (mode != Traits<Build>::LIBRARY);
     static const bool multicore = (Traits<Build>::CPUS > 1) && multithread;
-    static const bool multiheap = multitask || Traits<Scratchpad>::enabled;
+    static const bool multiheap = false;
 
     static const unsigned long LIFE_SPAN = 1 * YEAR; // s
     static const unsigned int DUTY_CYCLE = 1000000; // ppm

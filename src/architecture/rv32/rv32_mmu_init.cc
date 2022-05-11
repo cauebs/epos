@@ -3,6 +3,8 @@
 #include <architecture/mmu.h>
 #include <system.h>
 
+#ifdef __sifive_u__
+
 __BEGIN_SYS
 
 void RV32S_MMU::init()
@@ -18,3 +20,4 @@ void RV32S_MMU::init()
 
 __END_SYS
 
+#endif

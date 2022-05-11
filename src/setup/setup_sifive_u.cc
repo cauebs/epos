@@ -48,6 +48,7 @@ public:
 private:
     void say_hi();
     void call_next();
+    
     void panic() { Machine::panic(); }
 
 private:
@@ -86,8 +87,6 @@ void Setup::say_hi()
     if(si->bm.application_offset == -1U) {
         db<Setup>(ERR) << "No APPLICATION in boot image, you don't need EPOS!" << endl;
         panic();
-    } else {
-        si->lm.has_app = true;
     }
 
     kout << "This is EPOS!\n" << endl;
@@ -131,7 +130,7 @@ void Setup::call_next()
 
     db<Setup>(INF) << "SETUP ends here!" << endl;
 
-    // Set SP and call next stage
+    // Call next stage
     static_cast<void (*)()>(pc)();
 
     // SETUP is now part of the free memory and this point should never be reached, but, just in case ... :-)

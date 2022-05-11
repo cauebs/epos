@@ -197,14 +197,13 @@ int main(int argc, char **argv)
     unsigned int boot_size = image_size;
 
     // Add SETUP
-    if(!strcmp(CONFIG.mode, "library") && !CONFIG.need_boot)
-        si.bm.setup_offset = -1;
-    else {
+    sprintf(file, "%s/img/setup_%s", argv[optind], CONFIG.mmod);
+    if(file_exist(file)) {
         si.bm.setup_offset = image_size - boot_size;
-        sprintf(file, "%s/img/setup_%s", argv[optind], CONFIG.mmod);
         fprintf(out, "    Adding setup \"%s\":", file);
         image_size += put_file(fd_img, file);
-    }
+    } else
+        si.bm.setup_offset = -1;
 
     // Add INIT and OS (for mode != library only)
     if(!strcmp(CONFIG.mode, "library")) {

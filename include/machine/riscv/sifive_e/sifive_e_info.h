@@ -10,8 +10,7 @@ __BEGIN_SYS
 struct System_Info: public System_Info_Common
 {
     Boot_Map bm;
-    Physical_Memory_Map pmm;
-    Kernel_Load_Map lm;
+    Library_Load_Map lm;
 };
 
 __END_SYS

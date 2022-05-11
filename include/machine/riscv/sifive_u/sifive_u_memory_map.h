@@ -30,7 +30,7 @@ public:
         // Memory-mapped devices
         TEST_BASE       = 0x00100000, // SiFive test engine
         RTC_BASE        = 0x00101000, // Goldfish RTC
-        UART_BASE       = 0x10000000, // NS16550A UART
+        UART0_BASE      = 0x10000000, // NS16550A UART
         CLINT_BASE      = 0x02000000, // SiFive CLINT
         TIMER_BASE      = 0x02004000, // CLINT Timer
         PLIIC_CPU_BASE  = 0x0c000000, // SiFive PLIC

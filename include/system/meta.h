@@ -10,7 +10,7 @@ template <typename T1>
 class Native_Wrapper
 {
 public:
-	typedef T1 Type;
+    typedef T1 Type;
 
 public:
     Native_Wrapper() {}
