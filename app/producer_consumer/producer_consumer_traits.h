@@ -148,6 +148,10 @@ template<> struct Traits<Alarm>: public Traits<Build>
     static const bool visible = hysterically_debugged;
 };
 
+template<> struct Traits<Address_Space>: public Traits<Build> {};
+
+template<> struct Traits<Segment>: public Traits<Build> {};
+
 __END_SYS
 
 #endif

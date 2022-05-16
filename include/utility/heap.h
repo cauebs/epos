@@ -73,10 +73,17 @@ public:
         }
     }
 
-    void free(void * ptr) {
+    static void typed_free(void * ptr) {
         int * addr = reinterpret_cast<int *>(ptr);
         unsigned int bytes = *--addr;
-        free(addr, bytes);
+        Heap * heap = reinterpret_cast<Heap *>(*--addr);
+        heap->free(addr, bytes);
+    }
+
+    static void untyped_free(Heap * heap, void * ptr) {
+        int * addr = reinterpret_cast<int *>(ptr);
+        unsigned int bytes = *--addr;
+        heap->free(addr, bytes);
     }
 
 private:
