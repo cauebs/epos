@@ -1,3 +1,9 @@
 *.o
 *.vscode/
 dockepos
+*.conf
+hello
+*.img
+*.out
+eposcfg
+eposmkbi
