@@ -37,10 +37,8 @@ public:
 
 #ifdef __sifive_e__
             CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::AON_BASE);
-#else
-            CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::TEST_BASE);
-#endif
             reset[0] = 0x5555;
+#endif
 
             while(true);
         } else {
@@ -54,10 +52,8 @@ public:
 
 #ifdef __sifive_e__
         CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::AON_BASE);
-#else
-        CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::TEST_BASE);
-#endif
         reset[0] = 0x5555;
+#endif
 
         while(true);
     }

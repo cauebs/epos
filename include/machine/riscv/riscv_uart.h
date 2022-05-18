@@ -213,7 +213,7 @@ private:
     static volatile CPU::Reg8 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg8 *>(Memory_Map::UART0_BASE)[o / sizeof(CPU::Reg8)]; }
 };
 
-class UART: private UART_Common, private IF<Traits<Build>::MODEL == Traits<Build>::SiFive_E, SiFive_UART, NS16500A>::Result
+class UART: private UART_Common, private IF<Traits<Build>::MODEL == Traits<Build>::SiFive_U, SiFive_UART, NS16500A>::Result
 {
 private:
     static const unsigned int UNIT = Traits<UART>::DEF_UNIT;
@@ -222,7 +222,7 @@ private:
     static const unsigned int PARITY = Traits<UART>::DEF_PARITY;
     static const unsigned int STOP_BITS = Traits<UART>::DEF_STOP_BITS;
 
-    typedef IF<Traits<Build>::MODEL == Traits<Build>::SiFive_E, SiFive_UART, NS16500A>::Result Engine;
+    typedef IF<Traits<Build>::MODEL == Traits<Build>::SiFive_U, SiFive_UART, NS16500A>::Result Engine;
 
 public:
     using UART_Common::NONE;

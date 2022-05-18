@@ -143,6 +143,10 @@ using namespace EPOS::S;
 
 void _entry() // machine mode
 {
+    if (CPU::id() != 0) {
+        CPU::halt();
+    }
+
     CPU::mstatusc(CPU::MIE);                            // disable interrupts
     CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);          // enable interrupts at CLINT so IPI and timer can be triggered
     CLINT::mtvec(CLINT::DIRECT, _int_entry);            // setup a preliminary machine mode interrupt handler pointing it to _int_entry
