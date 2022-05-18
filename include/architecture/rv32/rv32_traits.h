@@ -32,6 +32,11 @@ template<> struct Traits<TSC>: public Traits<Build>
     static const bool enabled = true;
 };
 
+template<> struct Traits<PMU>: public Traits<Build>
+{
+    static const bool enabled = (Traits<Build>::MODEL == Traits<Build>::SiFive_U);
+};
+
 __END_SYS
 
 #endif
