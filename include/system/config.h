@@ -170,6 +170,7 @@ namespace EPOS {
 #ifdef __sifive_e__
 #define __riscv__
 #define __TSC_H                 __HEADER_ARCH(tsc)
+#define __PMU_H                 __HEADER_ARCH(pmu)
 
 #define __UART_H                __HEADER_MACH(uart)
 #endif
@@ -177,6 +178,7 @@ namespace EPOS {
 #ifdef __sifive_u__
 #define __riscv__
 #define __TSC_H                 __HEADER_ARCH(tsc)
+#define __PMU_H                 __HEADER_ARCH(pmu)
 
 #define __UART_H                __HEADER_MACH(uart)
 #endif

@@ -18,4 +18,42 @@ void Machine::panic()
         poweroff();
 }
 
+void Machine::reboot()
+{
+    if(Traits<System>::reboot) {
+        db<Machine>(WRN) << "Machine::reboot()" << endl;
+
+#ifdef __sifive_e__
+        CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::AON_BASE);
+        reset[0] = 0x5555;
+#endif
+
+#if defined(__sifive_u__) && defined(__rv32__)
+        CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::TEST_BASE);
+        reset[0] = 0x5555;
+#endif
+
+        while(true);
+    } else {
+        poweroff();
+    }
+}
+
+void Machine::poweroff()
+{
+    db<Machine>(WRN) << "Machine::poweroff()" << endl;
+
+#ifdef __sifive_e__
+        CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::AON_BASE);
+        reset[0] = 0x5555;
+#endif
+
+#if defined(__sifive_u__) && defined(__rv32__)
+        CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::TEST_BASE);
+        reset[0] = 0x5555;
+#endif
+
+    while(true);
+}
+
 __END_SYS

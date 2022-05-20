@@ -29,38 +29,8 @@ public:
     using Machine_Common::clear_bss;
 
     static void panic();
-
-    static void reboot()
-    {
-        if(Traits<System>::reboot) {
-            db<Machine>(WRN) << "Machine::reboot()" << endl;
-
-#ifdef __sifive_e__
-            CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::AON_BASE);
-#else
-            CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::TEST_BASE);
-#endif
-            reset[0] = 0x5555;
-
-            while(true);
-        } else {
-            poweroff();
-        }
-    }
-
-    static void poweroff()
-    {
-        db<Machine>(WRN) << "Machine::poweroff()" << endl;
-
-#ifdef __sifive_e__
-        CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::AON_BASE);
-#else
-        CPU::Reg * reset = reinterpret_cast<CPU::Reg *>(Memory_Map::TEST_BASE);
-#endif
-        reset[0] = 0x5555;
-
-        while(true);
-    }
+    static void reboot();
+    static void poweroff();
 
     static const UUID & uuid() { return System::info()->bm.uuid; }
 

@@ -48,9 +48,9 @@ public:
     static const unsigned int SYS               = armv7 ? 0xff700000 : 0xf8000000;   // 4 GB - (armv7 ? 9 MB : 128 MB)
 
     // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = (armv7 ? 64 : 256) * 1024;
     static const unsigned int MAX_THREADS       = 16;
-    static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;
+    static const unsigned int STACK_SIZE        = (armv7 ? 64 : 256) * 1024;
+    static const unsigned int HEAP_SIZE         = 4 * 1024 * 1024;
 
     // PLL clocks
     static const unsigned int ARM_PLL_CLOCK     = 1333333333;

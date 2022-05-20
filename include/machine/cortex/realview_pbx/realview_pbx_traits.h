@@ -47,9 +47,9 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int SYS               = NOT_USED;
 
     // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = 16 * 1024;
-    static const unsigned int HEAP_SIZE         = 16 * 1024 * 1024;
     static const unsigned int MAX_THREADS       = 16;
+    static const unsigned int STACK_SIZE        = 16 * 1024;
+    static const unsigned int HEAP_SIZE         = 4 * 1024 * 1024;
 
     // PLL clocks
     static const unsigned int ARM_PLL_CLOCK     = 1333333333;

@@ -4,9 +4,9 @@
 #define __armv8_pmu_h
 
 #include <architecture/cpu.h>
-#define __common_only__
+#define __pmu_common_only__
 #include <architecture/pmu.h>
-#undef __common_only__
+#undef __pmu_common_only__
 
 __BEGIN_SYS
 
