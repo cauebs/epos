@@ -87,30 +87,28 @@ void Setup::say_hi()
         panic();
     }
 
-    if(Traits<Setup>::debugged) {
-        kout << "This is EPOS!\n" << endl;
-        kout << "Setting up this machine as follows: " << endl;
-        kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in" : "kernel") << endl;
-        kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV32 at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
-        kout << "  Machine:      SiFive-E" << endl;
-        kout << "  Memory:       " << (RAM_TOP + 1 - RAM_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(RAM_BASE) << ":" << reinterpret_cast<void *>(RAM_TOP) << "]" << endl;
-        kout << "  User memory:  " << (FREE_TOP - FREE_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(FREE_BASE) << ":" << reinterpret_cast<void *>(FREE_TOP) << "]" << endl;
-        kout << "  I/O space:    " << (MIO_TOP + 1 - MIO_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(MIO_BASE) << ":" << reinterpret_cast<void *>(MIO_TOP) << "]" << endl;
-        kout << "  Node Id:      ";
-        if(si->bm.node_id != -1)
-            kout << si->bm.node_id << " (" << Traits<Build>::NODES << ")" << endl;
-        else
-            kout << "will get from the network!" << endl;
-        kout << "  Position:     ";
-        if(si->bm.space_x != -1)
-            kout << "(" << si->bm.space_x << "," << si->bm.space_y << "," << si->bm.space_z << ")" << endl;
-        else
-            kout << "will get from the network!" << endl;
-        if(si->bm.extras_offset != -1UL)
-            kout << "  Extras:       " << si->lm.app_extra_size << " bytes" << endl;
+    kout << "This is EPOS!\n" << endl;
+    kout << "Setting up this machine as follows: " << endl;
+    kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in" : "kernel") << endl;
+    kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV32 at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
+    kout << "  Machine:      SiFive-E" << endl;
+    kout << "  Memory:       " << (RAM_TOP + 1 - RAM_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(RAM_BASE) << ":" << reinterpret_cast<void *>(RAM_TOP) << "]" << endl;
+    kout << "  User memory:  " << (FREE_TOP - FREE_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(FREE_BASE) << ":" << reinterpret_cast<void *>(FREE_TOP) << "]" << endl;
+    kout << "  I/O space:    " << (MIO_TOP + 1 - MIO_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(MIO_BASE) << ":" << reinterpret_cast<void *>(MIO_TOP) << "]" << endl;
+    kout << "  Node Id:      ";
+    if(si->bm.node_id != -1)
+        kout << si->bm.node_id << " (" << Traits<Build>::NODES << ")" << endl;
+    else
+        kout << "will get from the network!" << endl;
+    kout << "  Position:     ";
+    if(si->bm.space_x != -1)
+        kout << "(" << si->bm.space_x << "," << si->bm.space_y << "," << si->bm.space_z << ")" << endl;
+    else
+        kout << "will get from the network!" << endl;
+    if(si->bm.extras_offset != -1UL)
+        kout << "  Extras:       " << si->lm.app_extra_size << " bytes" << endl;
 
-        kout << endl;
-    }
+    kout << endl;
 }
 
 void Setup::call_next()
@@ -139,7 +137,7 @@ void _entry() // machine mode
     CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);          // enable interrupts at CLINT so IPI and timer can be triggered
     CLINT::mtvec(CLINT::DIRECT, _int_entry);            // setup a preliminary machine mode interrupt handler pointing it to _int_entry
 
-    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1) - sizeof(long)); // set this hart stack (the first stack is reserved for _int_m2s)
+    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long)); // set this hart stack
 
     CPU::mstatus(CPU::MPP_M | CPU::MPIE);               // stay in machine mode and reenable interrupts at mret
 

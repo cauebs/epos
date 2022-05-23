@@ -18,7 +18,6 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
 public:
     static const unsigned int NOT_USED          = 0xffffffff;
-    static const unsigned int CPUS              = Traits<Build>::CPUS;
 
     // Physical Memory
     static const unsigned int ROM_BASE          = 0x20400000;                           // 512 MB

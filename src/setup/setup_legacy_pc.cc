@@ -27,10 +27,6 @@ __BEGIN_SYS
 
 extern OStream kout, kerr;
 
-// "_start" Synchronization Globals
-volatile char * Stacks;
-volatile bool Stacks_Ready = false;
-
 class Setup
 {
 private:
@@ -49,6 +45,7 @@ private:
     static const unsigned long GDT              = Memory_Map::GDT;
     static const unsigned long TSS0             = Memory_Map::TSS0;
     static const unsigned long APP_LOW          = Memory_Map::APP_LOW;
+    static const unsigned long APP_HIGH         = Memory_Map::APP_HIGH;
     static const unsigned long PHY_MEM          = Memory_Map::PHY_MEM;
     static const unsigned long IO               = Memory_Map::IO;
     static const unsigned long SYS              = Memory_Map::SYS;
@@ -88,7 +85,6 @@ private:
 
     void setup_idt();
     void setup_gdt();
-    void setup_tss();
     void setup_sys_pt();
     void setup_app_pt();
     void setup_sys_pd();
@@ -129,66 +125,43 @@ Setup::Setup(char * boot_image)
     db<Setup>(TRC) << "Setup(bi=" << reinterpret_cast<void *>(bi) << ",sp=" << CPU::sp() << ")" << endl;
     db<Setup>(INF) << "Setup:si=" << *si << endl;
 
-    if(CPU::id() == 0) { // bootstrap CPU (BSP)
+    // Disable hardware interrupt triggering at PIC
+    i8259A::reset();
 
-        // Disable hardware interrupt triggering at PIC
-        i8259A::reset();
+    // Detect RAM
+    unsigned long memb, memt;
+    detect_memory(&memb, &memt);
 
-        // Detect RAM
-        unsigned long memb, memt;
-        detect_memory(&memb, &memt);
+    // Detect PCI devices and calculate PCI apperture
+    detect_pci(&si->bm.mio_base, &si->bm.mio_top);
 
-        // Detect PCI devices and calculate PCI apperture
-        detect_pci(&si->bm.mio_base, &si->bm.mio_top);
+    // Calibrate timers
+    calibrate_timers();
 
-        // Calibrate timers
-        calibrate_timers();
+    // Build the memory model
+    build_lm();
+    build_pmm();
 
-        // Build the memory model
-        build_lm();
-        build_pmm();
+    // Print basic facts about this EPOS instance
+    say_hi();
 
-        // Print basic facts about this EPOS instance
-        say_hi();
+    // Configure the memory model defined above
+    setup_idt();
+    setup_gdt();
+    setup_sys_pt();
+    setup_app_pt();
+    setup_sys_pd();
 
-        // Configure the memory model defined above
-        setup_idt();
-        setup_gdt();
-        setup_sys_pt();
-        setup_app_pt();
-        setup_sys_pd();
+    // Enable paging
+    // We won't be able to print anything before the remap() bellow
+    db<Setup>(INF) << "Setup::pc=" << CPU::pc() << endl;
+    db<Setup>(INF) << "Setup::sp=" << CPU::sp() << endl;
+    db<Setup>(INF) << "Setup::cr0=" << reinterpret_cast<void *>(CPU::cr0()) << endl;
+    db<Setup>(INF) << "Setup::cr3=" << reinterpret_cast<void *>(CPU::cr3()) << endl;
+    enable_paging();
 
-        // Enable paging
-        // We won't be able to print anything before the remap() bellow
-        db<Setup>(INF) << "Setup::pc=" << CPU::pc() << endl;
-        db<Setup>(INF) << "Setup::sp=" << CPU::sp() << endl;
-        db<Setup>(INF) << "Setup::cr0=" << reinterpret_cast<void *>(CPU::cr0()) << endl;
-        db<Setup>(INF) << "Setup::cr3=" << reinterpret_cast<void *>(CPU::cr3()) << endl;
-
-        enable_paging();
-
-        // Load EPOS parts (e.g. INIT, SYSTEM, APP) and adjust pointers that will still be used to their logical addresses
-        load_parts();
-
-        // Configure a TSS for system calls and inter-level interrupt handling
-        setup_tss();
-
-        // Signalize other CPUs that paging is up
-        paging_ready = true;
-
-    } else { // additional CPUs (APs)
-
-        // Wait for the Boot CPU to setup page tables
-        while(!paging_ready);
-
-        // Enable paging
-        enable_paging();
-
-        // Configure a TSS for system calls and inter-level interrupt handling for this CPU
-        setup_tss();
-    }
-
-    CPU::smp_barrier(si->bm.n_cpus);
+    // Load EPOS parts (e.g. INIT, SYSTEM, APP) and adjust pointers that will still be used to their logical addresses
+    load_parts();
 
     db<Setup>(INF) << "Setup::pc=" << CPU::pc() << endl;
     db<Setup>(INF) << "Setup::sp=" << CPU::sp() << endl;
@@ -268,7 +241,7 @@ void Setup::build_lm()
     // Check SYSTEM integrity and get the size of its segments
     si->lm.sys_entry = 0;
     si->lm.sys_segments = 0;
-    si->lm.sys_code = ~0U;
+    si->lm.sys_code = 0;
     si->lm.sys_code_size = 0;
     si->lm.sys_data = ~0U;
     si->lm.sys_data_size = 0;
@@ -279,22 +252,35 @@ void Setup::build_lm()
         if(!sys_elf->valid())
             db<Setup>(ERR) << "OS ELF image is corrupted!" << endl;
         si->lm.sys_entry = sys_elf->entry();
-        int i = 0;
-        for(; (i < sys_elf->segments()) && (sys_elf->segment_type(i) != PT_LOAD); i++);
-        si->lm.sys_code = sys_elf->segment_address(i);
-        si->lm.sys_code_size = sys_elf->segment_size(i);
-        si->lm.sys_segments = 1;
-        for(i++; i < sys_elf->segments(); i++) {
-            if(sys_elf->segment_type(i) != PT_LOAD)
+        for(int i = 0; i < sys_elf->segments(); i++) {
+            if((sys_elf->segment_size(i) == 0) || (sys_elf->segment_type(i) != PT_LOAD))
                 continue;
-            if(sys_elf->segment_address(i) < si->lm.sys_data)
-                si->lm.sys_data = sys_elf->segment_address(i);
-            si->lm.sys_data_size += sys_elf->segment_size(i);
+            if((sys_elf->segment_address(i) < SYS) || (sys_elf->segment_address(i) > SYS_HIGH)) {
+                db<Setup>(WRN) << "Ignoring ELF segment " << i << " at " << hex << sys_elf->segment_address(i) << "!"<< endl;
+                continue;
+            }
+            if(sys_elf->segment_address(i) < SYS_DATA) { // CODE
+                if(si->lm.sys_code_size == 0) {
+                    si->lm.sys_code_size = sys_elf->segment_size(i);
+                    si->lm.sys_code = sys_elf->segment_address(i);
+                } else if(sys_elf->segment_address(i) < si->lm.sys_code) {
+                    si->lm.sys_code_size = si->lm.sys_code - sys_elf->segment_address(i) + sys_elf->segment_size(i);
+                    si->lm.sys_code = sys_elf->segment_address(i);
+                } else if(sys_elf->segment_address(i) > (si->lm.sys_code + si->lm.sys_code_size)) {
+                    si->lm.sys_code_size = sys_elf->segment_address(i) - si->lm.sys_code;
+                } else
+                    si->lm.sys_code_size += sys_elf->segment_size(i);
+            } else { // DATA
+                if(sys_elf->segment_address(i) < si->lm.sys_data)
+                    si->lm.sys_data = sys_elf->segment_address(i);
+                si->lm.sys_data_size += sys_elf->segment_size(i);
+            }
             si->lm.sys_segments++;
         }
-
         if(si->lm.sys_code != SYS_CODE)
             db<Setup>(ERR) << "OS code segment address (" << reinterpret_cast<void *>(si->lm.sys_code) << ") does not match the machine's memory map (" << reinterpret_cast<void *>(SYS_CODE) << ")!" << endl;
+        if(si->lm.sys_code != MMU::align_directory(si->lm.sys_code))
+            db<Setup>(ERR) << "OS code segment is not properly aligned!" << endl;
         if(si->lm.sys_code + si->lm.sys_code_size > si->lm.sys_data)
             db<Setup>(ERR) << "OS code segment is too large!" << endl;
         if(si->lm.sys_data != SYS_DATA)
@@ -319,37 +305,40 @@ void Setup::build_lm()
         if(!app_elf->valid())
             db<Setup>(ERR) << "APP ELF image is corrupted!" << endl;
         si->lm.app_entry = app_elf->entry();
-        int i = 0;
-        for(; (i < app_elf->segments()) && (app_elf->segment_type(i) != PT_LOAD); i++);
-        si->lm.app_code = app_elf->segment_address(i);
-        if(si->lm.app_code != MMU::align_directory(si->lm.app_code))
-            db<Setup>(ERR) << "Unaligned APP CODE image:" << hex << si->lm.app_code << endl;
-        si->lm.app_code_size = app_elf->segment_size(i);
-        si->lm.app_segments = 1;
-        for(i++; i < app_elf->segments(); i++) {
-            if(app_elf->segment_type(i) != PT_LOAD)
+        for(int i = 0; i < app_elf->segments(); i++) {
+            if((app_elf->segment_size(i) == 0) || (app_elf->segment_type(i) != PT_LOAD))
                 continue;
-            if(app_elf->segment_address(i) < si->lm.app_data)
-                si->lm.app_data = app_elf->segment_address(i);
-            si->lm.app_data_size += app_elf->segment_size(i);
+            if((app_elf->segment_address(i) < APP_LOW) || (app_elf->segment_address(i) > APP_HIGH)) {
+                db<Setup>(WRN) << "Ignoring ELF segment " << i << " at " << hex << app_elf->segment_address(i) << "!"<< endl;
+                continue;
+            }
+            if(app_elf->segment_address(i) < APP_DATA) { // CODE
+                if(si->lm.app_code_size == 0) {
+                    si->lm.app_code_size = app_elf->segment_size(i);
+                    si->lm.app_code = app_elf->segment_address(i);
+                } else if(app_elf->segment_address(i) < si->lm.app_code) {
+                    si->lm.app_code_size = si->lm.app_code - app_elf->segment_address(i) + app_elf->segment_size(i);
+                    si->lm.app_code = app_elf->segment_address(i);
+                } else if(app_elf->segment_address(i) > (si->lm.app_code + si->lm.app_code_size)) {
+                    si->lm.app_code_size = app_elf->segment_address(i) - si->lm.app_code;
+                } else
+                    si->lm.app_code_size += app_elf->segment_size(i);
+            } else { // DATA
+                if(app_elf->segment_address(i) < si->lm.app_data)
+                    si->lm.app_data = app_elf->segment_address(i);
+                si->lm.app_data_size += app_elf->segment_size(i);
+            }
             si->lm.app_segments++;
         }
+        if(si->lm.app_code != MMU::align_directory(si->lm.app_code))
+            db<Setup>(ERR) << "Unaligned APP code segment:" << hex << si->lm.app_code << endl;
         if(si->lm.app_data == ~0U) {
             db<Setup>(WRN) << "APP ELF image has no data segment!" << endl;
             si->lm.app_data = MMU::align_page(APP_DATA);
         }
-        if(Traits<System>::multiheap) { // Application heap in data segment
-            si->lm.app_data_size = MMU::align_page(si->lm.app_data_size);
-            si->lm.app_stack = si->lm.app_data + si->lm.app_data_size;
-            si->lm.app_data_size += MMU::align_page(Traits<Application>::STACK_SIZE);
-            si->lm.app_heap = si->lm.app_data + si->lm.app_data_size;
-            si->lm.app_data_size += MMU::align_page(Traits<Application>::HEAP_SIZE);
-        }
         if(si->lm.has_ext) { // Check for EXTRA data in the boot image
             si->lm.app_extra = si->lm.app_data + si->lm.app_data_size;
             si->lm.app_extra_size = si->bm.img_size - si->bm.extras_offset;
-            if(Traits<System>::multiheap)
-                si->lm.app_extra_size = MMU::align_page(si->lm.app_extra_size);
             si->lm.app_data_size += si->lm.app_extra_size;
         }
     }
@@ -788,36 +777,6 @@ void Setup::enable_paging()
 }
 
 
-void Setup::setup_tss()
-{
-    // Get current CPU's TSS logical address (after enabling paging)
-    unsigned int cpu_id = CPU::id();
-    TSS * tss = reinterpret_cast<TSS *>(TSS0 + cpu_id * sizeof(Page));
-
-    db<Setup>(TRC) << "Setup::setup_tss(tss" << cpu_id << "=" << Log_Addr(tss) << ")" << endl;
-
-    // Clear TSS
-    memset(tss, 0, sizeof(Page));
-
-    // Configure only the segment selectors and the kernel stack
-    tss->ss0 = CPU::SEL_SYS_DATA;
-    tss->esp0 = SYS_STACK + Traits<System>::STACK_SIZE * (CPU::id() + 1) - 2 * sizeof(int); // APs' tss->esp will be reconfigured later by CPU::Context::load()
-    tss->cs = (CPU::GDT_SYS_CODE << 3) | CPU::PL_APP;
-    tss->ss3 = (CPU::GDT_APP_DATA << 3) | CPU::PL_APP;
-    tss->ds = tss->ss3;
-    tss->es = tss->ss3;
-    tss->fs = tss->ss3;
-    tss->gs = tss->ss3;
-
-    // Load TR with TSS
-    CPU::Reg16 tr = ((CPU::GDT_TSS0 + cpu_id) << 3) | CPU::PL_SYS;
-    CPU::tr(tr);
-    tr = CPU::tr();
-
-    db<Setup>(INF) << "Setup::setup_tss:tr=" << tr << ",tss" << cpu_id << "={ss0=" << tss->ss0 << ",esp0=" << Log_Addr(tss->esp0) << "}" << endl;
-}
-
-
 void Setup::load_parts()
 {
     db<Setup>(TRC) << "Setup::load_parts()" << endl;
@@ -925,41 +884,23 @@ void Setup::adjust_perms()
 void Setup::call_next()
 {
     // Check for next stage and obtain the entry point
-    Log_Addr pc;
-    if(si->lm.has_ini) {
-        db<Setup>(TRC) << "Executing system's global constructors ..." << endl;
-        reinterpret_cast<void (*)()>((void *)si->lm.sys_entry)();
-        pc = si->lm.ini_entry;
-    } else if(si->lm.has_sys)
-        pc = si->lm.sys_entry;
-    else
-        pc = si->lm.app_entry;
+    Log_Addr pc = si->lm.app_entry;
 
     // Arrange a stack for each CPU to support stage transition
     // The 2 integers on the stacks are room for the return address
-    Log_Addr sp = SYS_STACK + Traits<System>::STACK_SIZE * (CPU::id() + 1) - 2 * sizeof(int);
+    Log_Addr sp = SYS_STACK + Traits<System>::STACK_SIZE - 2 * sizeof(int);
 
-    db<Setup>(TRC) << "Setup::call_next(pc=" << pc << ",sp=" << sp << ") => ";
-    if(si->lm.has_ini)
-        db<Setup>(TRC) << "INIT" << endl;
-    else if(si->lm.has_sys)
-        db<Setup>(TRC) << "SYSTEM" << endl;
-    else
-        db<Setup>(TRC) << "APPLICATION" << endl;
+    db<Setup>(TRC) << "Setup::call_next(pc=" << pc << ",sp=" << sp << ") => APPLICATION" << endl;
 
     db<Setup>(INF) << "SETUP ends here!" << endl;
-
-    CPU::smp_barrier(si->bm.n_cpus);
 
     // Set SP and call the next stage
     CPU::sp(sp);
     static_cast<void (*)()>(pc)();
 
-    if(CPU::id() == 0) { // bootstrap CPU (BSP)
-        // This will only happen when INIT was called and Thread was disabled
-        // Note we don't have the original stack here anymore!
-        reinterpret_cast<void (*)()>(si->lm.app_entry)();
-    }
+    // This will only happen when INIT was called and Thread was disabled
+    // Note we don't have the original stack here anymore!
+    reinterpret_cast<void (*)()>(si->lm.app_entry)();
 
     // SETUP is now part of the free memory and this point should never be
     // reached, but, just in case ... :-)
@@ -1102,8 +1043,6 @@ using namespace EPOS::S;
 //------------------------------------------------------------------------
 void _entry()
 {
-    static volatile int cpu_status[Traits<Machine>::CPUS];
-
     // Set EFLAGS
     CPU::flags(CPU::flags() & CPU::FLAG_CLEAR);
 
@@ -1119,86 +1058,39 @@ void _entry()
     // The boot strap code loaded the boot image either at Traits<Machine>::IMAGE or on a RAMDISK
     char * bi = reinterpret_cast<char *>((si->bm.img_size <= 2880 * 512) ? Traits<Machine>::IMAGE : Traits<Machine>::RAMDISK);
 
-    // Multicore conditional start up
-    if(APIC::id() == 0) { // Boot strap CPU (BSP)
-        // Check SETUP integrity and get information about its ELF structure
-        ELF * elf = reinterpret_cast<ELF *>(&bi[si->bm.setup_offset]);
-        if(!elf->valid())
-            Machine::panic();
-        char * entry = reinterpret_cast<char *>(elf->entry());
+    // Check SETUP integrity and get information about its ELF structure
+    ELF * elf = reinterpret_cast<ELF *>(&bi[si->bm.setup_offset]);
+    if(!elf->valid())
+        Machine::panic();
+    char * entry = reinterpret_cast<char *>(elf->entry());
 
-        // Test if we can access the address for which SETUP has been compiled
-        *entry = 'G';
-        if(*entry != 'G')
-            Machine::panic();
+    // Test if we can access the address for which SETUP has been compiled
+    *entry = 'G';
+    if(*entry != 'G')
+        Machine::panic();
 
-        // Load SETUP considering the address in the ELF header
-        // Be careful: by reloading SETUP, global variables have been reset to
-        // the values stored in the ELF data segment
-        // Also check if this wouldn't destroy the boot image
-        int size = elf->segment_size(0);
-        if(elf->segment_address(0) <= reinterpret_cast<unsigned int>(&bi[si->bm.img_size]))
-            Machine::panic();
-        if(elf->load_segment(0) < 0)
-            Machine::panic();
-        APIC::remap(APIC::LOCAL_APIC_PHY_ADDR);
+    // Load SETUP considering the address in the ELF header
+    // Be careful: by reloading SETUP, global variables have been reset to the values stored in the ELF data segment
+    // Also check if this wouldn't destroy the boot image
+    int size = elf->segment_size(0);
+    if(elf->segment_address(0) <= reinterpret_cast<unsigned int>(&bi[si->bm.img_size]))
+        Machine::panic();
+    if(elf->load_segment(0) < 0)
+        Machine::panic();
 
-        // Move the boot image to after SETUP, so there will be nothing else below SETUP to be preserved
-        // SETUP code + data + 1 stack per CPU
-        register char * dst = MMU::align_page(entry + size + Traits<Machine>::CPUS * sizeof(MMU::Page));
-        memcpy(dst, bi, si->bm.img_size);
-
-        // Passes a pointer to the just allocated stack pool to other CPUs
-        Stacks = dst;
-
-        // Initialize shared CPU counter
-        si->bm.n_cpus = 1;
-
-        // Broadcast INIT IPI to all APs excluding self
-        APIC::ipi_init(cpu_status);
-
-        // Broadcast STARTUP IPI to all APs excluding self
-        // Non-boot CPUs will run a simplified boot strap just to
-        // trampoline them into protected mode
-        // PC_BOOT arranged for this code and stored it at 0x3000
-        // ipi_start() waits for cpu_status to be incremented by the finc
-        // further down in this code
-        APIC::ipi_start(0x3000, cpu_status);
-
-        Stacks_Ready = true;
-
-    } else { // Additional CPUs (APs)
-        // Each AP increments the CPU counter
-        CPU::finc(si->bm.n_cpus);
-
-        // Inform BSP that this AP has been initialized
-        CPU::finc(cpu_status[APIC::id()]);
-
-        // Wait for BSP's ACK
-        while(cpu_status[APIC::id()] != 2);
-
-        if(APIC::id() >= int(Traits<Machine>::CPUS)) {
-            db<Setup>(WRN) << "More CPUs were detected than the current " << "configuration supports (" << Traits<Machine>::CPUS << ")." << endl;
-            db<Setup>(WRN) << "Disabling CPU " << APIC::id() << "!" << endl;
-
-            CPU::int_disable();
-            CPU::halt();
-        }
-
-        // Wait for the boot strap CPU to get us a stack
-        while(!Stacks_Ready);
-    }
+    // Move the boot image to after SETUP, so there will be nothing else below SETUP to be preserved
+    // SETUP code + data + 1 stack per CPU
+    register char * dst = MMU::align_page(entry + size + sizeof(MMU::Page));
+    memcpy(dst, bi, si->bm.img_size);
 
     // Setup a single page stack for SETUP after its data segment
-    // Boot strap CPU gets the highest address stack
-    // SP = "entry" + "size" + #CPU * sizeof(Page)
-    // Be careful: we'll loose our old stack now, so everything we still
-    // need to reach Setup() must be in regs or globals!
-    register char * sp = const_cast<char *>(Stacks) - sizeof(MMU::Page) * APIC::id();
+    // SP = "entry" + "size" + sizeof(Page)
+    // Be careful: we'll loose our old stack now, so everything we still need to reach Setup() must be in regs or globals!
+    register char * sp = const_cast<char *>(dst);
     ASM("movl %0, %%esp" : : "r" (sp));
 
     // Pass the boot image to SETUP
-    ASM("pushl %0" : : "r" (Stacks));
+    ASM("pushl %0" : : "r" (dst));
 
     // Call setup()
     // the assembly is necessary because the compiler generates
@@ -1209,18 +1101,8 @@ void _entry()
 
 void _setup(char * bi)
 {
-    if(!Traits<System>::multicore || (APIC::id() == 0)) {
-        kerr  << endl;
-        kout  << endl;
-    }
-
-    // Multicore sanity check
-    if(!Traits<System>::multicore && (APIC::id() != 0)) {
-        db<Setup>(WRN) << "Multicore disable by config, halting this CPU (" << APIC::id() << ")!" << endl;
-
-        CPU::int_disable();
-        CPU::halt();
-    }
+    kerr  << endl;
+    kout  << endl;
 
     Setup setup(bi);
 }

@@ -96,17 +96,14 @@ __BEGIN_SYS
 template<> struct Traits<Application>: public Traits<Build>
 {
     static const unsigned int STACK_SIZE = Traits<Machine>::STACK_SIZE;
-    static const unsigned int HEAP_SIZE = (MODEL == SiFive_E) ? Traits<Machine>::STACK_SIZE : Traits<Machine>::HEAP_SIZE;
+    static const unsigned int HEAP_SIZE = Traits<Machine>::HEAP_SIZE;
     static const unsigned int MAX_THREADS = Traits<Machine>::MAX_THREADS;
 };
 
 template<> struct Traits<System>: public Traits<Build>
 {
     static const unsigned int mode = Traits<Build>::MODE;
-    static const bool multithread = (Traits<Build>::CPUS > 1) || (Traits<Application>::MAX_THREADS > 1);
-    static const bool multitask = (mode != Traits<Build>::LIBRARY);
-    static const bool multicore = (Traits<Build>::CPUS > 1) && multithread;
-    static const bool multiheap = false;
+    static const bool multithread = (Traits<Application>::MAX_THREADS > 1);
 
     static const unsigned long LIFE_SPAN = 1 * YEAR; // s
     static const unsigned int DUTY_CYCLE = 1000000; // ppm
@@ -117,18 +114,10 @@ template<> struct Traits<System>: public Traits<Build>
     static const unsigned int HEAP_SIZE = (Traits<Application>::MAX_THREADS + 1) * Traits<Application>::STACK_SIZE;
 };
 
-template<> struct Traits<Task>: public Traits<Build>
-{
-    static const bool enabled = Traits<System>::multitask;
-};
-
 template<> struct Traits<Thread>: public Traits<Build>
 {
     static const bool enabled = Traits<System>::multithread;
-    static const bool smp = Traits<System>::multicore;
     static const bool trace_idle = hysterically_debugged;
-    static const bool simulate_capacity = false;
-
     static const bool preemptive = true;
     static const unsigned int QUANTUM = 100000; // us
 };

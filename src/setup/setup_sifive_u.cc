@@ -1,7 +1,5 @@
 // EPOS SiFive-U (RISC-V) SETUP
 
-// If multitasking is enabled, configure the machine in supervisor mode and activate paging. Otherwise, keep the machine in machine mode.
-
 #include <architecture.h>
 #include <machine.h>
 #include <utility/elf.h>
@@ -35,7 +33,7 @@ private:
     static const unsigned long FREE_BASE        = Memory_Map::FREE_BASE;
     static const unsigned long FREE_TOP         = Memory_Map::FREE_TOP;
     static const unsigned long SETUP            = Memory_Map::SETUP;
-    static const unsigned long BOOT_STACK   	= Memory_Map::BOOT_STACK;
+    static const unsigned long BOOT_STACK       = Memory_Map::BOOT_STACK;
 
     // Architecture Imports
     typedef CPU::Reg Reg;
@@ -48,7 +46,7 @@ public:
 private:
     void say_hi();
     void call_next();
-    
+
     void panic() { Machine::panic(); }
 
 private:
@@ -94,9 +92,9 @@ void Setup::say_hi()
     kout << "  Mode:         " << ((Traits<Build>::MODE == Traits<Build>::LIBRARY) ? "library" : (Traits<Build>::MODE == Traits<Build>::BUILTIN) ? "built-in" : "kernel") << endl;
     kout << "  Processor:    " << Traits<Machine>::CPUS << " x RV64 at " << Traits<CPU>::CLOCK / 1000000 << " MHz (BUS clock = " << Traits<CPU>::CLOCK / 1000000 << " MHz)" << endl;
     kout << "  Machine:      SiFive-U" << endl;
-    kout << "  Memory:       " << (si->bm.mem_top - si->bm.mem_base) / 1024 << " KB [" << reinterpret_cast<void *>(si->bm.mem_base) << ":" << reinterpret_cast<void *>(si->bm.mem_top) << "]" << endl;
+    kout << "  Memory:       " << (RAM_TOP + 1 - RAM_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(RAM_BASE) << ":" << reinterpret_cast<void *>(RAM_TOP) << "]" << endl;
     kout << "  User memory:  " << (FREE_TOP - FREE_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(FREE_BASE) << ":" << reinterpret_cast<void *>(FREE_TOP) << "]" << endl;
-    kout << "  I/O space:    " << (si->bm.mio_top - si->bm.mio_base) / 1024 << " KB [" << reinterpret_cast<void *>(si->bm.mio_base) << ":" << reinterpret_cast<void *>(si->bm.mio_top) << "]" << endl;
+    kout << "  I/O space:    " << (MIO_TOP + 1 - MIO_BASE) / 1024 << " KB [" << reinterpret_cast<void *>(MIO_BASE) << ":" << reinterpret_cast<void *>(MIO_TOP) << "]" << endl;
     kout << "  Node Id:      ";
     if(si->bm.node_id != -1)
         kout << si->bm.node_id << " (" << Traits<Build>::NODES << ")" << endl;
@@ -107,15 +105,7 @@ void Setup::say_hi()
         kout << "(" << si->bm.space_x << "," << si->bm.space_y << "," << si->bm.space_z << ")" << endl;
     else
         kout << "will get from the network!" << endl;
-    if(si->lm.has_stp)
-        kout << "  Setup:        " << si->lm.stp_code_size + si->lm.stp_data_size << " bytes" << endl;
-    if(si->lm.has_ini)
-        kout << "  Init:         " << si->lm.ini_code_size + si->lm.ini_data_size << " bytes" << endl;
-    if(si->lm.has_sys)
-        kout << "  OS code:      " << si->lm.sys_code_size << " bytes" << "\tdata: " << si->lm.sys_data_size << " bytes" << "   stack: " << si->lm.sys_stack_size << " bytes" << endl;
-    if(si->lm.has_app)
-        kout << "  APP code:     " << si->lm.app_code_size << " bytes" << "\tdata: " << si->lm.app_data_size << " bytes" << endl;
-    if(si->lm.has_ext)
+    if(si->bm.extras_offset != -1UL)
         kout << "  Extras:       " << si->lm.app_extra_size << " bytes" << endl;
 
     kout << endl;
@@ -150,7 +140,7 @@ void _entry() // machine mode
     CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);          // enable interrupts at CLINT so IPI and timer can be triggered
     CLINT::mtvec(CLINT::DIRECT, _int_entry);            // setup a preliminary machine mode interrupt handler pointing it to _int_entry
 
-    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE * (CPU::id() + 1) - sizeof(long)); // set this hart stack (the first stack is reserved for _int_m2s)
+    CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long)); // set this hart stack
 
     CPU::mstatus(CPU::MPP_M | CPU::MPIE);               // stay in machine mode and reenable interrupts at mret
 

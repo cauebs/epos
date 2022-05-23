@@ -62,7 +62,7 @@ public:
         assert((channel < CHANNELS) && (event < EVENTS));
 
         db<PMU>(TRC) << "PMU::config(c=" << channel << ",e=" << event << ",f=" << flags << ")" << endl;
-        db<PMU>(TRC) << _events[event] <<endl;
+
         if(((channel == 0) && (_events[event] != 0)) || ((channel == 1) && (_events[event] != 1)) || ((channel == 2) && (_events[event] != 2))) {
             db<PMU>(WRN) << "PMU::config: channel " << channel << " is fixed in this architecture and cannot be reconfigured!" << endl;
             return;

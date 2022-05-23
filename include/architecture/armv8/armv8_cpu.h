@@ -294,7 +294,7 @@ public:
         return id & 0x3;
     }
 
-    static unsigned int cores() { return Traits<Build>::CPUS; }
+    static unsigned int cores() { return 1; }
 
     static void smp_barrier(unsigned int cores = ARMv8_A::cores());
 

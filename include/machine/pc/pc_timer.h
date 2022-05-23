@@ -237,7 +237,7 @@ class Timer: public Timer_Common
     friend class Init_System;
 
 protected:
-    typedef IF<Traits<System>::multicore, APIC_Timer, i8253>::Result Engine;
+    typedef i8253 Engine;
     typedef Engine::Count Count;
     typedef IC::Interrupt_Id Interrupt_Id;
 

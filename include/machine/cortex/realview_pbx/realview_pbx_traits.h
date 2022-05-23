@@ -21,7 +21,6 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const bool cpus_use_local_timer      = true;
 
     static const unsigned int NOT_USED          = 0xffffffff;
-    static const unsigned int CPUS              = Traits<Build>::CPUS;
 
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x00000000;

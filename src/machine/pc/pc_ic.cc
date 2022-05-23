@@ -867,9 +867,9 @@ void IC::entry()
 //      "       movl    $255, %0                                        \n"
         "1:                                                             \n" : "=m"(id) : );
 
-    CPU::Context::push(false);
+    CPU::Context::push(true);
     dispatch(id);
-    CPU::Context::pop(false, true);
+    CPU::Context::pop(true);
 };
 
 // Default logical handler

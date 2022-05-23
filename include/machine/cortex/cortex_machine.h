@@ -19,8 +19,6 @@ class Machine: private Machine_Model
     friend class Init_Begin;
 
 private:
-    static const bool smp = Traits<System>::multicore;
-
     typedef Machine_Model Engine;
 
 public:

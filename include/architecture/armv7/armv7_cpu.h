@@ -10,8 +10,6 @@ __BEGIN_SYS
 class ARMv7: protected CPU_Common
 {
 protected:
-    static const bool multicore = Traits<System>::multicore;
-    static const bool multitask = Traits<System>::multitask;
     static const bool save_fpu  = Traits<FPU>::enabled && !Traits<FPU>::user_save;
 
 public:
@@ -402,22 +400,11 @@ public:
     };
 
     // CPU Context
-    class Multitask_Context
-    {
-    public:
-        Multitask_Context() {}
-        Multitask_Context(Log_Addr usp, Log_Addr ulr):  _usp(usp), _ulr(ulr) {}
-
-    public:
-        Reg _usp;
-        Reg _ulr;
-    };
-
-    class Context: public Multitask_Context, public ARMv7::Context
+    class Context: public ARMv7::Context
     {
     public:
         Context() {}
-        Context(Log_Addr usp, Log_Addr entry, Log_Addr exit): Multitask_Context(usp, exit), ARMv7::Context((multitask && usp) ? MODE_USR : MODE_SVC, entry, exit) {}
+        Context(Log_Addr usp, Log_Addr entry, Log_Addr exit): ARMv7::Context(MODE_SVC, entry, exit) {}
 
         static void pop(bool interrupt = false, bool stay_in_svc = true);
         static void push(bool interrupt = false, bool stay_in_svc = true);
@@ -442,8 +429,6 @@ public:
                << ",sp="  << &c
                << ",lr="  << c._lr
                << ",pc="  << c._pc
-               << ",usp=" << c._usp
-               << ",ulr=" << c._ulr
                << "}" << dec;
             return os;
         }
@@ -472,26 +457,11 @@ public:
 
     using ARMv7::halt;
 
-    static unsigned int id() {
-        if(Traits<System>::multicore) {
-            Reg id;
-            ASM("mrc p15, 0, %0, c0, c0, 5" : "=r"(id) : : );
-            return id & 0x3;
-        } else
-            return 0;
-    }
+    static unsigned int id() { return 0; }
 
-    static unsigned int cores() {
-        if(Traits<System>::multicore && (Traits<Build>::MODEL != Traits<Build>::Raspberry_Pi3)) {
-            Reg n;
-            ASM("mrc p15, 4, %0, c15, c0, 0 \t\n\
-                 ldr %0, [%0, #0x004]" : "=r"(n) : : );
-            return (n & 0x3) + 1;
-        } else
-            return Traits<Build>::CPUS;
-    }
+    static unsigned int cores() { return 1; }
 
-    static void smp_barrier(unsigned int cores = ARMv7_A::cores()) { if(Traits<System>::multicore) CPU_Common::smp_barrier<&finc>(cores, id()); }
+    static void smp_barrier(unsigned int cores = ARMv7_A::cores()) {}
 
     static void fpu_enable() {
         // This code assumes a compilation with mfloat-abi=hard and does not care for context switches
@@ -583,7 +553,6 @@ inline void ARMv7_A::Context::push(bool interrupt, bool stay_in_svc)
          ASM("str r12, [sp, #56]");             // overwrite PC with the calculated address
          psr_to_tmp();
          ASM("push {r12}");			// push PSR
-         ASM("sub sp, #8");                     // skip ULR and USP
          if(save_fpu)
              fpu_save();
     }
@@ -599,7 +568,6 @@ inline void ARMv7_A::Context::pop(bool interrupt, bool stay_in_svc)
     } else {
         if(save_fpu)
             fpu_restore();
-        ASM("add sp, #8"); 				// skip ULR and USP
         ASM("pop {r12}");				// pop PSR
         if(stay_in_svc) {
             tmp_to_cpsr();

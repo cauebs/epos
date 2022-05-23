@@ -18,7 +18,6 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
 public:
     static const unsigned int NOT_USED          = 0xffffffff;
-    static const unsigned int CPUS              = Traits<Build>::CPUS;
 
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x80000000;                           // 2 GB
@@ -44,9 +43,9 @@ public:
     static const unsigned int SYS               = 0xff800000;                           // 4 GB - 8 MB
 
     // Default Sizes and Quantities
-    static const unsigned int STACK_SIZE        = 64 * 1024;
     static const unsigned int MAX_THREADS       = 16;
-    static const unsigned int HEAP_SIZE         = (MAX_THREADS + CPUS) * STACK_SIZE;    // threads (including idles for each CPU) are the largest objects allocated from the heap
+    static const unsigned int STACK_SIZE        = 64 * 1024;
+    static const unsigned int HEAP_SIZE         = 1 * 1024 * 1024;
 };
 
 template <> struct Traits<IC>: public Traits<Machine_Common>

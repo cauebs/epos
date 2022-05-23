@@ -13,7 +13,6 @@ template<> struct Traits<Machine_Common>: public Traits<Build> {};
 template<> struct Traits<Machine>: public Traits<Machine_Common>
 {
     static const unsigned int NOT_USED          = 0xffffffff;
-    static const unsigned int CPUS              = Traits<Build>::CPUS;
 
     // Physical Memory
     static const unsigned int RAM_BASE          = 0x00000000;
@@ -32,7 +31,7 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
     static const unsigned int APP_LOW           = 0x80000000;   // 2 GB
     static const unsigned int APP_HIGH          = 0xff7fffff;   // SYS - 1
 
-    static const unsigned int APP_CODE          = APP_LOW;
+    static const unsigned int APP_CODE          = APP_LOW;      // APP_CODE < APP_DATA must hold
     static const unsigned int APP_DATA          = APP_CODE + 4 * 1024 * 1024;
 
     static const unsigned int INIT              = 0x00200000;   // 2 MB (only used during boot)
@@ -42,7 +41,7 @@ template<> struct Traits<Machine>: public Traits<Machine_Common>
 
     // Default Sizes and Quantities
     static const unsigned int MAX_THREADS       = 16;
-    static const unsigned int STACK_SIZE        = 256 * 1024;
+    static const unsigned int STACK_SIZE        = 64 * 1024;
     static const unsigned int HEAP_SIZE         = 4 * 1024 * 1024;
 };
 
