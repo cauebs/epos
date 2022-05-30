@@ -1,4 +1,4 @@
-// EPOS RISC-V 32 CPU Mediator Initialization
+// EPOS RISC-V 64 CPU Mediator Initialization
 
 #include <architecture.h>
 

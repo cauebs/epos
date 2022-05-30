@@ -208,7 +208,6 @@ void Setup::setup_flat_paging()
         (CPU::ATTR_NORMAL_NON_CACHE) << 3 * CPU::ATTR_OFFSET); // second attribute index
 
 #endif
-
 }
 
 

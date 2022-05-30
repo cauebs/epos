@@ -1,6 +1,6 @@
-// EPOS RISC-V 32 CPU Mediator Implementation
+// EPOS RISC-V 64 CPU Mediator Implementation
 
-#include <architecture/rv32/rv32_cpu.h>
+#include <architecture/rv64/rv64_cpu.h>
 #include <system.h>
 
 __BEGIN_SYS

@@ -114,13 +114,11 @@ void Setup::say_hi()
 void Setup::call_next()
 {
     // Check for next stage and obtain the entry point
-    Log_Addr pc;
-
-    pc = &_start;
+    Log_Addr pc = &_start;
 
     db<Setup>(INF) << "SETUP ends here!" << endl;
 
-    // Call next stage
+    // Call the next stage
     static_cast<void (*)()>(pc)();
 
     // SETUP is now part of the free memory and this point should never be reached, but, just in case ... :-)
@@ -133,13 +131,15 @@ using namespace EPOS::S;
 
 void _entry() // machine mode
 {
-    CPU::mstatusc(CPU::MIE);                            // disable interrupts
-    CPU::mies(CPU::MSI | CPU::MTI | CPU::MEI);          // enable interrupts at CLINT so IPI and timer can be triggered
+    CPU::mstatusc(CPU::MIE);                            // disable interrupts (they will be reenabled at Init_End)
+    CPU::mies(CPU::MSI);                                // enable interrupts at CLINT so IPI and timer can be triggered
     CLINT::mtvec(CLINT::DIRECT, _int_entry);            // setup a preliminary machine mode interrupt handler pointing it to _int_entry
 
     CPU::sp(Memory_Map::BOOT_STACK + Traits<Machine>::STACK_SIZE - sizeof(long)); // set this hart stack
 
-    CPU::mstatus(CPU::MPP_M | CPU::MPIE);               // stay in machine mode and reenable interrupts at mret
+    Machine::clear_bss();
+
+    CPU::mstatus(CPU::MPP_M);                           // stay in machine mode at mret
 
     CPU::mepc(CPU::Reg(&_setup));                       // entry = _setup
     CPU::mret();                                        // enter supervisor mode at setup (mepc) with interrupts enabled (mstatus.mpie = true)
@@ -147,9 +147,5 @@ void _entry() // machine mode
 
 void _setup() // supervisor mode
 {
-    CPU::mie(CPU::MSI);                                 // enable MSI at CLINT so IPI can be triggered
-
-    Machine::clear_bss();
-
     Setup setup;
 }

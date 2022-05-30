@@ -1,7 +1,7 @@
-// EPOS RISC-V 32 CPU Mediator Declarations
+// EPOS RISC-V 64 CPU Mediator Declarations
 
-#ifndef __rv32_h
-#define __rv32_h
+#ifndef __rv64_h
+#define __rv64_h
 
 #include <architecture/cpu.h>
 
@@ -312,7 +312,7 @@ public:
     }
 
 public:
-    // RISC-V 32 specifics
+    // RISC-V 64 specifics
     static Reg status()    { return mstatus(); }
     static void status(Status st) { mstatus(st); }
 
