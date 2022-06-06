@@ -10,37 +10,39 @@ unsigned int CPU::_bus_clock;
 
 void CPU::Context::save() volatile
 {
-    ASM("       sw       x1,    0(a0)           \n"     // push RA as PC
-        "       csrr     x3,  mstatus           \n"
-        "       sw       x3,    4(a0)           \n"     // push ST
-        "       sw       x1,    8(a0)           \n"     // push RA
-        "       sw       x5,   12(a0)           \n"     // push x5-x31
-        "       sw       x6,   16(a0)           \n"
-        "       sw       x7,   20(a0)           \n"
-        "       sw       x8,   24(a0)           \n"
-        "       sw       x9,   28(a0)           \n"
-        "       sw      x10,   32(a0)           \n"
-        "       sw      x11,   36(a0)           \n"
-        "       sw      x12,   40(a0)           \n"
-        "       sw      x13,   44(a0)           \n"
-        "       sw      x14,   48(a0)           \n"
-        "       sw      x15,   52(a0)           \n"
-        "       sw      x16,   56(a0)           \n"
-        "       sw      x17,   60(a0)           \n"
-        "       sw      x18,   64(a0)           \n"
-        "       sw      x19,   68(a0)           \n"
-        "       sw      x20,   72(a0)           \n"
-        "       sw      x21,   76(a0)           \n"
-        "       sw      x22,   80(a0)           \n"
-        "       sw      x23,   84(a0)           \n"
-        "       sw      x24,   88(a0)           \n"
-        "       sw      x25,   92(a0)           \n"
-        "       sw      x26,   96(a0)           \n"
-        "       sw      x27,  100(a0)           \n"
-        "       sw      x28,  104(a0)           \n"
-        "       sw      x29,  108(a0)           \n"
-        "       sw      x30,  112(a0)           \n"
-        "       sw      x31,  116(a0)           \n"
+    ASM("       sw       x1,    0(a0)           \n");   // push RA as PC
+
+    ASM("       csrr     x3,  mstatus           \n");
+
+    ASM("       sd      x3,     0(sp)           \n"     // push ST
+        "       sd      x1,    16(sp)           \n"     // push RA
+        "       sd      x5,    24(sp)           \n"     // push x5-x31
+        "       sd      x6,    32(sp)           \n"
+        "       sd      x7,    40(sp)           \n"
+        "       sd      x8,    48(sp)           \n"
+        "       sd      x9,    56(sp)           \n"
+        "       sd      x10,   64(sp)           \n"
+        "       sd      x11,   72(sp)           \n"
+        "       sd      x12,   80(sp)           \n"
+        "       sd      x13,   88(sp)           \n"
+        "       sd      x14,   96(sp)           \n"
+        "       sd      x15,  104(sp)           \n"
+        "       sd      x16,  112(sp)           \n"
+        "       sd      x17,  120(sp)           \n"
+        "       sd      x18,  128(sp)           \n"
+        "       sd      x19,  136(sp)           \n"
+        "       sd      x20,  144(sp)           \n"
+        "       sd      x21,  152(sp)           \n"
+        "       sd      x22,  160(sp)           \n"
+        "       sd      x23,  168(sp)           \n"
+        "       sd      x24,  176(sp)           \n"
+        "       sd      x25,  184(sp)           \n"
+        "       sd      x26,  192(sp)           \n"
+        "       sd      x27,  200(sp)           \n"
+        "       sd      x28,  208(sp)           \n"
+        "       sd      x29,  216(sp)           \n"
+        "       sd      x30,  224(sp)           \n"
+        "       sd      x31,  232(sp)           \n"
         "       ret                             \n");
 }
 
@@ -66,4 +68,3 @@ void CPU::switch_context(Context ** o, Context * n)     // "o" is in a0 and "n" 
 }
 
 __END_SYS
-
