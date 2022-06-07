@@ -1,4 +1,4 @@
-// EPOS RISC-V 32 Test Program
+// EPOS RISC-V 64 Test Program
 
 #include <architecture/cpu.h>
 
@@ -7,7 +7,7 @@ using namespace EPOS;
 int main()
 {
     OStream cout;
-    cout << "RISC-V 32bits test" << endl;
+    cout << "RISC-V 64bits test" << endl;
 
     CPU cpu;
 
@@ -57,7 +57,7 @@ int main()
                 cout << "cas(): ok" << endl;
     }
 
-    cout << "RISC-V 32bits test finished" << endl;
+    cout << "RISC-V 64bits test finished" << endl;
 
     return 0;
 }

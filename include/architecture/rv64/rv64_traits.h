@@ -1,5 +1,4 @@
 // EPOS RISC-V 64 Architecture Metainfo
-
 #ifndef __rv64_traits_h
 #define __rv64_traits_h
 
