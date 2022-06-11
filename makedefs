@@ -332,7 +332,7 @@ TEE		:= tee
 ifndef DISPLAY
 TERM		:= sh -c
 else
-TERM		:= konsole -e
+TERM		:= xterm -e
 endif
 
 TOUCH		:= touch

@@ -23,7 +23,7 @@ template<> struct Traits<Build>: public Traits_Tokens
     static const bool debugged = true;
     static const bool hysterically_debugged = false;
 
-    // Default aspects
+    // Default aspectst
     typedef ALIST<> ASPECTS;
 };
 

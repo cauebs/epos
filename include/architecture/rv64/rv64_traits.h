@@ -10,7 +10,7 @@ template<> struct Traits<CPU>: public Traits<Build>
 {
     enum {LITTLE, BIG};
     static const unsigned int ENDIANESS         = LITTLE;
-    static const unsigned int WORD_SIZE         = 32;
+    static const unsigned int WORD_SIZE         = 64;
     static const unsigned int CLOCK             = 50000000;
     static const bool unaligned_memory_access   = false;
 };

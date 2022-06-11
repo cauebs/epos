@@ -7,3 +7,7 @@ hello
 *.out
 eposcfg
 eposmkbi
+
+# Generated apps
+app/philosophers_dinner/philosophers_dinner
+img/philosophers_dinner
