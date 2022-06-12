@@ -145,6 +145,44 @@ public:
     FCFS(int p = NORMAL, Tn & ... an);
 };
 
+// Completely Fair Scheduler
+class CFSLike: public Priority
+{
+public:
+    enum : int {
+        MAIN   = 1,
+        HIGH   = 2,
+        NORMAL = 4,
+        LOW    = 8,
+        IDLE   = (unsigned(1) << (sizeof(int) * 8 - 1)) - 1,
+    };
+
+    static const bool timed = true;
+    static const bool dynamic = true;
+    static const bool preemptive = false;
+
+public:
+    template <typename ... Tn>
+    CFSLike(int p = NORMAL, Tn & ... an): Priority(p), _vruntime(0) {}
+
+    void add_vruntime(unsigned int delta) {
+        if (_priority == IDLE) {
+            return;
+        }
+        _vruntime += delta * _priority;
+    }
+
+    operator const volatile int() const volatile {
+        if (_priority == IDLE) {
+            return IDLE;
+        }
+        return _vruntime;
+    }
+
+public:
+    unsigned long _vruntime;
+};
+
 __END_SYS
 
 #endif
