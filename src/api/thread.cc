@@ -327,13 +327,16 @@ void Thread::dispatch(Thread * prev, Thread * next, bool charge)
     // "next" is not in the scheduler's queue anymore. It's already "chosen"
 
     if(charge) {
-        if(Criterion::timed) {
-            int remaining_quantum_percentage = _timer->restart();
+        if (Criterion::timed) {
+            _timer->restart();
+        }
 
-            if (EQUAL<Criterion, CFSLike>::Result) {
-                int vruntime_delta = 100 - remaining_quantum_percentage;
-                prev->priority().add_vruntime(vruntime_delta);
-            }
+        if (Criterion::charging) {
+            prev->criterion().charge();
+        }
+
+        if (Criterion::collecting) {
+            next->criterion().collect();
         }
     }
 

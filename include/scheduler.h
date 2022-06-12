@@ -160,27 +160,45 @@ public:
     static const bool timed = true;
     static const bool dynamic = true;
     static const bool preemptive = false;
+    static const bool collecting = true;
+    static const bool charging = true;
+
+    struct Statistics {
+        Statistics(): thread_execution_time(0), last_thread_dispatch(0) {}
+
+        TSC::Time_Stamp thread_execution_time;
+        TSC::Time_Stamp last_thread_dispatch;
+    };
 
 public:
     template <typename ... Tn>
-    CFSLike(int p = NORMAL, Tn & ... an): Priority(p), _vruntime(0) {}
+    CFSLike(int p = NORMAL, Tn & ... an): Priority(p) {}
 
-    void add_vruntime(unsigned int delta) {
-        if (_priority == IDLE) {
-            return;
-        }
-        _vruntime += delta * _priority;
+    bool collect(bool end = false) {
+        _statistics.last_thread_dispatch = TSC::time_stamp();
+        return false;
     }
+
+    bool charge(bool end = false) {
+        TSC::Time_Stamp current = TSC::time_stamp();
+        TSC::Time_Stamp elapsed = current - _statistics.last_thread_dispatch;
+        _statistics.thread_execution_time += elapsed;
+        return true;
+    }
+
+    volatile Statistics & statistics() { return _statistics; }
 
     operator const volatile int() const volatile {
         if (_priority == IDLE) {
             return IDLE;
         }
-        return _vruntime;
+        unsigned int hw_ticks_per_sw_ticks = TSC::frequency() / Traits<Timer>::FREQUENCY;
+        unsigned int ticks = _statistics.thread_execution_time / hw_ticks_per_sw_ticks;
+        return ticks * _priority;
     }
 
-public:
-    unsigned long _vruntime;
+protected:
+    Statistics _statistics;
 };
 
 __END_SYS
