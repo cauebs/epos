@@ -55,7 +55,7 @@ public:
         TVM             = 1 << 20,      // Trap Virtual Memory makes SATP inaccessible in supervisor mode
         TW              = 1 << 21,      // Timeout Wait for WFI outside machine mode
         TSR             = 1 << 22,      // Trap SRet in supervisor mode
-        SD              = 1 << 31,      // Status Dirty = (FS | XS) // todo: change this (?)
+        SD              = 1UL << 63,    // Status Dirty = (FS | XS)
     };
 
     // Interrupt-Enable, Interrupt-Pending and Machine Cause Registers ([m|s]ie, [m|s]ip, and [m|s]cause when interrupt bit is set)
@@ -424,7 +424,7 @@ if(interrupt) {
 
     ASM("       csrr    x3,  mstatus            \n");
 
-    ASM("       sd      x3,     0(sp)           \n"     // push ST
+    ASM("       sd      x3,     8(sp)           \n"     // push ST
         "       sd      x1,    16(sp)           \n"     // push RA
         "       sd      x5,    24(sp)           \n"     // push x5-x31
         "       sd      x6,    32(sp)           \n"

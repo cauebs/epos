@@ -20,8 +20,7 @@ private:
 
     // Registers offsets from CLINT_BASE
     enum {               // Description
-        MTIME  = 0xbff8, // Counter (lower 32 bits)
-        MTIMEH = 0xbffc  // Counter (upper 32 bits)
+        MTIME  = 0xbff8, // Counter
     };
 
 public:
@@ -35,12 +34,12 @@ public:
     static Hertz frequency() { return CLOCK; }
     static PPB accuracy() { return ACCURACY; }
 
-    static Time_Stamp time_stamp() { return (CPU::Reg64(reg(MTIMEH)) << 32) | reg(MTIME); }
+    static Time_Stamp time_stamp() { return reg(MTIME); }
 
 private:
     static void init() {}
 
-    static volatile CPU::Reg32 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg32 *>(Memory_Map::CLINT_BASE)[o / sizeof(CPU::Reg32)]; }
+    static volatile CPU::Reg64 & reg(unsigned int o) { return reinterpret_cast<volatile CPU::Reg64 *>(Memory_Map::CLINT_BASE)[o / sizeof(CPU::Reg64)]; }
 };
 
 __END_SYS

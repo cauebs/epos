@@ -18,7 +18,7 @@ __epos_app_entry:
         // Main's stack was allocated by Thread::init()
         call    main
         addi    sp, sp, -8
-        sw      a0, 0(sp)   // save main's return value to be used by exit()
+        sd      a0, 0(sp)   // save main's return value to be used by exit()
         call    _fini
-        lw      a0, 0(sp)
+        ld      a0, 0(sp)
         call    _exit

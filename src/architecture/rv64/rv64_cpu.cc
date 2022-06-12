@@ -10,11 +10,11 @@ unsigned int CPU::_bus_clock;
 
 void CPU::Context::save() volatile
 {
-    ASM("       sw       x1,    0(a0)           \n");   // push RA as PC
+    ASM("       sd       x1,    0(a0)           \n");   // push RA as PC
 
     ASM("       csrr     x3,  mstatus           \n");
 
-    ASM("       sd      x3,     0(sp)           \n"     // push ST
+    ASM("       sd      x3,     8(sp)           \n"     // push ST
         "       sd      x1,    16(sp)           \n"     // push RA
         "       sd      x5,    24(sp)           \n"     // push x5-x31
         "       sd      x6,    32(sp)           \n"
@@ -59,7 +59,7 @@ void CPU::switch_context(Context ** o, Context * n)     // "o" is in a0 and "n" 
 {   
     // Push the context into the stack and update "o"
     Context::push();
-    ASM("sw sp, 0(a0)");   // update Context * volatile * o, which is in a0
+    ASM("sd sp, 0(a0)");   // update Context * volatile * o, which is in a0
 
     // Set the stack pointer to "n" and pop the context from the stack
     ASM("mv sp, a1");   // "n" is in a1
